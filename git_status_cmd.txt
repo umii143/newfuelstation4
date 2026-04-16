@@ -1,0 +1,34 @@
+On branch master
+
+No commits yet
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.gitignore
+	.prettierrc
+	.vscode/
+	antigravity-skills-tutorial/
+	git_status.txt
+	git_status_cmd.txt
+	index.html
+	masterplan1.md
+	masterplan2.md
+	masterplan3.md
+	output_test.txt
+	package-lock.json
+	package.json
+	plain1.md
+	postcss.config.js
+	shift detailed plan/
+	shiftplan2.md
+	sidebar.md
+	src/
+	tailwind.config.js
+	tsconfig.json
+	tsconfig.node.json
+	vite.config.d.ts
+	vite.config.js
+	vite.config.ts
+	vitest.config.ts
+
+nothing added to commit but untracked files present (use "git add" to track)

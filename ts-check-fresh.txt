@@ -1,0 +1,73 @@
+src/components/shifts/ShiftWizard.tsx(230,17): error TS2353: Object literal may only specify known properties, and 'closedBy' does not exist in type 'Partial<ShiftClosingWizardState>'.
+src/components/shifts/steps/StepFinance.tsx(364,21): error TS2322: Type 'Transaction | { id: `${string}-${string}-${string}-${string}-${string}`; type: "EXPENSE"; amount: number; expenseCategory: ShiftExpenseCategory; description: string; staffId: string | undefined; staffName: string | undefined; timestamp: string; }' is not assignable to type 'Transaction'.
+  Object literal may only specify known properties, and 'staffName' does not exist in type 'Transaction'.
+src/components/shifts/steps/StepFinance.tsx(364,21): error TS2353: Object literal may only specify known properties, and 'staffName' does not exist in type 'Transaction'.
+src/lib/firebase.ts(4,5): error TS2305: Module '"firebase/auth"' has no exported member 'createUserWithEmailAndPassword'.
+src/lib/firebase.ts(5,5): error TS2305: Module '"firebase/auth"' has no exported member 'signOut'.
+src/lib/firebase.ts(6,5): error TS2305: Module '"firebase/auth"' has no exported member 'getAuth'.
+src/lib/firebase.ts(7,5): error TS2305: Module '"firebase/auth"' has no exported member 'GoogleAuthProvider'.
+src/lib/firebase.ts(8,5): error TS2305: Module '"firebase/auth"' has no exported member 'onAuthStateChanged'.
+src/lib/firebase.ts(9,5): error TS2305: Module '"firebase/auth"' has no exported member 'sendEmailVerification'.
+src/lib/firebase.ts(10,5): error TS2305: Module '"firebase/auth"' has no exported member 'sendPasswordResetEmail'.
+src/lib/firebase.ts(11,5): error TS2305: Module '"firebase/auth"' has no exported member 'signInWithEmailAndPassword'.
+src/lib/firebase.ts(12,5): error TS2305: Module '"firebase/auth"' has no exported member 'signInWithPopup'.
+src/lib/firebase.ts(13,10): error TS2305: Module '"firebase/auth"' has no exported member 'User'.
+src/lib/shiftLogic.ts(36,11): error TS6133: 'totalAdvances' is declared but its value is never read.
+src/lib/shiftLogic.ts(67,9): error TS2353: Object literal may only specify known properties, and 'totalDiscounts' does not exist in type 'Partial<ShiftClosingWizardState>'.
+src/pages/cng/CNGDashboard.tsx(42,7): error TS6133: 'pressureData' is declared but its value is never read.
+src/pages/cng/CNGDiscounts.tsx(190,66): error TS2339: Property 'userId' does not exist on type 'BackendUser | LocalUser'.
+  Property 'userId' does not exist on type 'BackendUser'.
+src/pages/cng/CNGDiscounts.tsx(191,66): error TS2339: Property 'name' does not exist on type 'BackendUser | LocalUser'.
+  Property 'name' does not exist on type 'BackendUser'.
+src/pages/cng/CNGDiscounts.tsx(203,66): error TS2339: Property 'userId' does not exist on type 'BackendUser | LocalUser'.
+  Property 'userId' does not exist on type 'BackendUser'.
+src/pages/cng/CNGDiscounts.tsx(204,66): error TS2339: Property 'name' does not exist on type 'BackendUser | LocalUser'.
+  Property 'name' does not exist on type 'BackendUser'.
+src/pages/cng/CNGReports.tsx(5,1): error TS6133: 'useSupplierLedgerStore' is declared but its value is never read.
+src/pages/cng/CNGSettings.tsx(34,30): error TS2353: Object literal may only specify known properties, and 'cngMeterIds' does not exist in type 'Partial<Settings>'.
+src/pages/cng/CNGSettings.tsx(42,26): error TS2353: Object literal may only specify known properties, and 'cngMeterIds' does not exist in type 'Partial<Settings>'.
+src/pages/cng/CNGSettings.tsx(330,65): error TS2353: Object literal may only specify known properties, and 'easyPaisaAccount' does not exist in type 'Partial<Settings>'.
+src/pages/cng/CNGSettings.tsx(337,65): error TS2353: Object literal may only specify known properties, and 'jazzCashAccount' does not exist in type 'Partial<Settings>'.
+src/pages/cng/CNGStaff.tsx(2,1): error TS6133: 'useStaffStore' is declared but its value is never read.
+src/pages/cng/CNGStaff.tsx(54,35): error TS7006: Parameter 'staff' implicitly has an 'any' type.
+src/pages/cng/CNGStaff.tsx(54,42): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/pages/cng/CNGStaff.tsx(123,17): error TS2322: Type '{ children: Element; isOpen: boolean; onClose: () => void; title: string; }' is not assignable to type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+  Property 'isOpen' does not exist on type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+src/pages/cng/CNGStaff.tsx(129,25): error TS2322: Type '{ label: string; placeholder: string; value: string; onChange: (e: FormEvent<HTMLDivElement>) => void; }' is not assignable to type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+src/pages/cng/CNGStaff.tsx(132,82): error TS2339: Property 'value' does not exist on type 'EventTarget'.
+src/pages/cng/CNGStaff.tsx(135,25): error TS2322: Type '{ label: string; placeholder: string; value: string; onChange: (e: FormEvent<HTMLDivElement>) => void; }' is not assignable to type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+  Property 'label' does not exist on type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+src/pages/cng/CNGStaff.tsx(138,83): error TS2339: Property 'value' does not exist on type 'EventTarget'.
+src/pages/cng/CNGStaff.tsx(153,17): error TS2322: Type '{ children: any; isOpen: boolean; onClose: () => void; title: string; size: string; }' is not assignable to type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+  Property 'isOpen' does not exist on type 'DetailedHTMLProps<HTMLAttributes<HTMLDivElement>, HTMLDivElement>'.
+src/pages/Dashboard.tsx(532,61): error TS2367: This comparison appears to be unintentional because the types '"MAINTENANCE" | "OPERATIONAL" | "FAULT"' and '"ACTIVE"' have no overlap.
+src/pages/Dashboard.tsx(623,61): error TS2339: Property 'totalRevenue' does not exist on type 'Sale'.
+src/pages/Discounts.tsx(104,30): error TS2339: Property 'id' does not exist on type 'BackendUser | LocalUser'.
+  Property 'id' does not exist on type 'LocalUser'.
+src/pages/Discounts.tsx(120,41): error TS2339: Property 'id' does not exist on type 'BackendUser | LocalUser'.
+  Property 'id' does not exist on type 'LocalUser'.
+src/pages/Discounts.tsx(127,19): error TS2339: Property 'id' does not exist on type 'BackendUser | LocalUser'.
+  Property 'id' does not exist on type 'LocalUser'.
+src/pages/fuel/FuelDashboard.tsx(511,11): error TS6133: 'intelligence' is declared but its value is never read.
+src/pages/fuel/FuelDashboard.tsx(986,44): error TS2339: Property 'name' does not exist on type 'BackendUser | LocalUser'.
+  Property 'name' does not exist on type 'BackendUser'.
+src/pages/fuel/Shifts.test.ts(52,13): error TS2339: Property 'useFuelStore' does not exist on type 'FuelState'.
+src/pages/fuel/Shifts.test.ts(140,13): error TS2339: Property 'useFuelStore' does not exist on type 'FuelState'.
+src/pages/lube/Dashboard.tsx(272,42): error TS2304: Cannot find name 'idx'.
+src/pages/lube/Dashboard.tsx(612,59): error TS2551: Property 'totalAmount' does not exist on type 'SaleItem'. Did you mean 'taxAmount'?
+src/pages/lube/LubeSettings.tsx(781,71): error TS2339: Property 'pin' does not exist on type 'BackendUser | LocalUser'.
+  Property 'pin' does not exist on type 'BackendUser'.
+src/pages/lube/LubeSettings.tsx(784,45): error TS2304: Cannot find name 'setPinError'.
+src/pages/lube/LubeSettings.tsx(786,45): error TS2304: Cannot find name 'setPinError'.
+src/pages/lube/POS.tsx(111,17): error TS2353: Object literal may only specify known properties, and 'discountAmount' does not exist in type 'Omit<Sale, "receiptNumber" | "saleId">'.
+src/pages/staff/StaffAccounts.tsx(63,37): error TS2339: Property 'userId' does not exist on type 'BackendUser | LocalUser'.
+  Property 'userId' does not exist on type 'BackendUser'.
+src/stores/backendFuelStore.ts(248,54): error TS2345: Argument of type '{ stationId: string; shiftId?: string | undefined; pumpId?: string | undefined; fuelType: string; quantityLiters: number; ratePerLiter: number; totalAmount: number; paymentMethod: string; customerId?: string | undefined; }' is not assignable to parameter of type 'CreateFuelSaleRequest'.
+  Types of property 'shiftId' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/tests/business-unit-isolation.test.ts(37,56): error TS2353: Object literal may only specify known properties, and 'mappedNozzles' does not exist in type 'FuelState | Partial<FuelState> | ((state: FuelState) => FuelState | Partial<FuelState>)'.
+src/tests/business-unit-isolation.test.ts(58,15): error TS6133: 'tanks' is declared but its value is never read.
+src/tests/business-unit-isolation.test.ts(59,9): error TS2304: Cannot find name 'addTank'.
+src/tests/header.test.tsx(3,30): error TS2307: Cannot find module '../src/components/layout/GlobalHeader' or its corresponding type declarations.

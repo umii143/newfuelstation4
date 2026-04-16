@@ -1,0 +1,29 @@
+src/pages/cng/CNGDashboard.tsx(43,27): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(43,39): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(43,51): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(43,58): error TS1128: Declaration or statement expected.
+src/pages/cng/CNGDashboard.tsx(44,27): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(44,39): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(44,51): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(44,58): error TS1128: Declaration or statement expected.
+src/pages/cng/CNGDashboard.tsx(45,27): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(45,39): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(45,51): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(45,58): error TS1128: Declaration or statement expected.
+src/pages/cng/CNGDashboard.tsx(46,27): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(46,39): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(46,51): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(46,58): error TS1128: Declaration or statement expected.
+src/pages/cng/CNGDashboard.tsx(47,27): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(47,39): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(47,51): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(47,58): error TS1128: Declaration or statement expected.
+src/pages/cng/CNGDashboard.tsx(48,27): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(48,39): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(48,51): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(48,58): error TS1128: Declaration or statement expected.
+src/pages/cng/CNGDashboard.tsx(49,27): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(49,39): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(49,51): error TS1005: ';' expected.
+src/pages/cng/CNGDashboard.tsx(49,58): error TS1128: Declaration or statement expected.
+src/pages/cng/CNGDashboard.tsx(50,1): error TS1128: Declaration or statement expected.

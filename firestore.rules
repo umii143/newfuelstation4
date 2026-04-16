@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Function to get the user's assigned stationId from their profile
+    function getUserStationId() {
+      // Returns the stationId assigned to the currently logged in user
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.stationId;
+    }
+
+    // 1. Users Collection
+    // Users can only read and write their own profile document
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 2. Stations Multi-Tenant Sandbox
+    // Users can access ANY document inside their mapped stationId, and nothing else!
+    match /stations/{stationId}/{document=**} {
+      allow read, write: if isAuthenticated() && getUserStationId() == stationId;
+    }
+    
+    // 3. Fallback Deny All
+    // Explicitly block all other database access vectors
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

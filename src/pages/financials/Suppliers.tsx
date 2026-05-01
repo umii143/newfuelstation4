@@ -5,6 +5,7 @@
 
 import { Badge, Button, Card, PageHeader } from '@/components/ui';
 import { useSupplierStore } from '@/stores/dataStores';
+import { useSettingsStore } from '@/stores/authStore';
 import { useSupplierLedgerStore } from '@/stores/ledgerStore';
 import type { Supplier, SupplierLedgerEntry } from '@/types';
 import clsx from 'clsx';
@@ -26,6 +27,8 @@ import {
     X,
 } from 'lucide-react';
 import React, { useState } from 'react';
+import { SkeletonKPI, SkeletonList } from '@/components/shared/skeletons/SkeletonList';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 // Helper functions
 const formatCurrency = (amount: number): string => {
@@ -51,13 +54,16 @@ const formatTime = (dateString: string): string => {
 type SupplierTab = 'overview' | 'ledger' | 'purchases' | 'payments' | 'aging';
 
 export const SuppliersPage: React.FC = () => {
-    const { suppliers, addSupplier, isLoading, error: storeError } = useSupplierStore();
+    const { settings } = useSettingsStore();
+    const { getFilteredSuppliers, addSupplier, isLoading: isSuppliersLoading, error: storeError } = useSupplierStore();
     const {
         entries: ledgerEntries,
         getSupplierLedger,
         getSupplierPayable,
         getSupplierAging,
+        isLoading: isLedgerLoading
     } = useSupplierLedgerStore();
+    const isGlobalLoading = isSuppliersLoading || isLedgerLoading;
     const [localError, setLocalError] = useState<string | null>(null);
 
     // Safely get payable
@@ -138,7 +144,7 @@ export const SuppliersPage: React.FC = () => {
                 stationId: 'STN-001',
                 rating: 5.0,
                 status: 'ACTIVE',
-                businessUnit: 'FUEL',
+                businessUnit: settings.businessUnit,
             });
 
             setIsAddModalOpen(false);
@@ -156,11 +162,13 @@ export const SuppliersPage: React.FC = () => {
     };
 
     // Filter suppliers with safe handling for name/phone
-    const filteredSuppliers = suppliers.filter(
+    const filteredSuppliers = getFilteredSuppliers().filter(
         s =>
             s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             s.contactPerson.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const suppliers = getFilteredSuppliers();
 
     // Safe calculations with array checks and null guards
     const totalPayables = Array.isArray(suppliers)
@@ -696,7 +704,10 @@ export const SuppliersPage: React.FC = () => {
             />
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {isGlobalLoading ? (
+                <SkeletonKPI count={4} />
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {/* Total Payables */}
                 <div className="p-5 rounded-2xl bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-500/30 backdrop-blur-sm">
                     <div className="flex items-center gap-3 mb-3">
@@ -773,7 +784,8 @@ export const SuppliersPage: React.FC = () => {
                         <span>Total transactions</span>
                     </div>
                 </div>
-            </div>
+                </div>
+            )}
 
             {/* Search */}
             <div className="relative max-w-md">
@@ -789,11 +801,16 @@ export const SuppliersPage: React.FC = () => {
 
             {/* Supplier List */}
             <div className="grid gap-3">
-                {filteredSuppliers.length === 0 ? (
-                    <Card className="text-center py-12">
-                        <Building className="w-12 h-12 mx-auto text-[var(--text-secondary)] mb-3" />
-                        <p className="text-[var(--text-secondary)]">No suppliers found</p>
-                    </Card>
+                {isGlobalLoading ? (
+                    <SkeletonList count={5} />
+                ) : filteredSuppliers.length === 0 ? (
+                    <EmptyState
+                        icon={<Building />}
+                        title="No Suppliers Found"
+                        description="Record your fuel and lube suppliers to manage payables, purchases, and payments."
+                        actionLabel="Add Supplier"
+                        onAction={() => setIsAddModalOpen(true)}
+                    />
                 ) : (
                     filteredSuppliers.map(supplier => {
                         const payable = safeGetPayable(supplier.supplierId);
@@ -1093,12 +1110,12 @@ export const SuppliersPage: React.FC = () => {
                                 }}
                                 disabled={!purchaseForm.amount}
                             >
-                                {isLoading ? (
+                                {false ? (
                                     <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
                                 ) : (
                                     <Plus size={18} className="mr-2" />
                                 )}
-                                {isLoading ? 'Recording...' : 'Record Expense'}
+                                {false ? 'Recording...' : 'Record Expense'}
                             </Button>
                         </div>
                     </div>

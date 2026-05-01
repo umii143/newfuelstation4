@@ -1,3 +1,5 @@
+import { useAuthStore } from '@/stores/authStore';
+import { useCNGStore } from '@/stores/cngStore';
 import { useFuelStore } from '@/stores/fuelStore';
 import clsx from 'clsx';
 import { AnimatePresence, motion, useSpring, useTransform } from 'framer-motion';
@@ -113,7 +115,17 @@ const STAG = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
 
 /* ════════════════════════════════════════════════════════════════════ */
 export const BankCashPage: React.FC = () => {
-    const { shifts } = useFuelStore();
+    const { settings } = useAuthStore();
+    const isCNG = settings.businessUnit === 'CNG';
+    
+    
+    const fuelStore = useFuelStore();
+    const cngStore = useCNGStore();
+    
+    const shifts = isCNG ? cngStore.shifts : fuelStore.shifts;
+    const addBankDepositEntry = isCNG 
+        ? () => {} // CNG store might need this action added if not present
+        : fuelStore.addBankDepositEntry;
 
     const [search, setSearch] = useState('');
     const [preset, setPreset] = useState<DatePreset>('MONTH');
@@ -124,8 +136,6 @@ export const BankCashPage: React.FC = () => {
     const [slipNum, setSlipNum] = useState('');
     const [shiftSel, setShiftSel] = useState('');
     const [expanded, setExpanded] = useState<string | null>(null);
-
-    const { addBankDepositEntry } = useFuelStore();
 
     const defaultShift = shifts.length > 0 ? shifts[0].shiftId : '';
 

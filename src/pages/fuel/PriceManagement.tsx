@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/stores/authStore';
 import { useFuelStore } from '@/stores/fuelStore';
 import { useAuditStore } from '@/stores/ledgerStore';
+import { useConfigStore } from '@/stores/configStore';
 import { format } from 'date-fns';
 import { Clock, History, Save, TrendingUp, Zap } from 'lucide-react';
 import React, { useState } from 'react';
@@ -39,6 +40,18 @@ const PriceManagement: React.FC = () => {
 
                 if (newRate !== tank.salePrice || newCost !== tank.costPrice) {
                     updateFuelPrice(tankId, newCost, newRate);
+                    try {
+                        useConfigStore.getState().updateTank(tankId, { salePrice: newRate, costPrice: newCost });
+                        useConfigStore.getState().changeRate(
+                            tank.fuelType,
+                            newRate,
+                            (user as any)?.userId || 'SYS',
+                            (user as any)?.name || 'Admin',
+                            'OMC_RATE_CHANGE'
+                        );
+                    } catch (e) {
+                        console.warn('useConfigStore sync error:', e);
+                    }
                     itemsUpdated++;
                 }
             }

@@ -56,12 +56,12 @@ export const Button: React.FC<ButtonProps> = ({
 
     const variantStyles: Record<ButtonVariant, string> = {
         primary:
-            'bg-accent-blue text-white hover:brightness-110 focus:ring-blue-500 shadow-lg shadow-blue-500/20',
+            'bg-blue-600 text-white hover:brightness-110 focus:ring-blue-500 shadow-lg shadow-blue-500/20',
         secondary:
             'bg-[var(--bg-surface)] border-2 border-[var(--border)] text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] hover:border-[var(--text-secondary)] shadow-sm',
-        danger: 'bg-accent-rose text-white hover:brightness-110 focus:ring-rose-500 shadow-lg shadow-rose-500/20',
+        danger: 'bg-rose-600 text-white hover:brightness-110 focus:ring-rose-500 shadow-lg shadow-rose-500/20',
         success:
-            'bg-accent-emerald text-white hover:brightness-110 focus:ring-emerald-500 shadow-lg shadow-emerald-500/20',
+            'bg-emerald-600 text-white hover:brightness-110 focus:ring-emerald-500 shadow-lg shadow-emerald-500/20',
         ghost: 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]',
     };
 

@@ -1,5 +1,5 @@
 // @ts-nocheck
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 import { initializeApp } from 'firebase/app';
 import {
     createUserWithEmailAndPassword,

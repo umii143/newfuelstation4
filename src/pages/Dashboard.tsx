@@ -27,6 +27,8 @@ import {
     Zap,
 } from 'lucide-react';
 import React, { useState } from 'react';
+import { SkeletonKPI, SkeletonList } from '@/components/shared/skeletons/SkeletonList';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 /* ── Animation helpers ──────────────────────────────────────────── */
 const SPRING = { type: 'spring' as const, stiffness: 360, damping: 28 };
@@ -403,9 +405,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
 
     const fuelStore = useFuelStore();
     const cngStore = useCNGStore();
-    const lubeSales = useSalesStore(s => s.sales);
-    const products = useProductStore(s => s.products);
-    const staff = useStaffStore(s => s.users);
+    const productStore = useProductStore();
+    const staffStore = useStaffStore();
+    const salesStore = useSalesStore();
 
     const [activeTab, setActiveTab] = useState<'overview' | 'activity'>('overview');
 
@@ -428,18 +430,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     }[] = [];
 
     if (bu === 'FUEL') {
-        const todayShifts = fuelStore.shifts.filter(s => s.startTime.startsWith(todayStr));
+        const fuelShifts = fuelStore.getFilteredShifts();
+        const todayShifts = fuelShifts.filter(s => s.startTime.startsWith(todayStr));
         const closedToday = todayShifts.filter(s => s.status === 'CLOSED');
         const todaySales = closedToday.reduce((a, s) => a + s.totalRevenue, 0);
-        const activeStaff = staff.filter(
-            u => u.status === 'ACTIVE' && u.businessUnit === 'FUEL'
-        ).length;
-        const totalStaff = staff.filter(u => u.businessUnit === 'FUEL').length;
+        
+        const activeStaffList = staffStore.getActiveStaff();
+        const activeStaff = activeStaffList.length;
+        const totalStaff = staffStore.users.filter(u => u.businessUnit === 'FUEL').length;
+        
         const totalCap = fuelStore.tanks.reduce((a, t) => a + t.capacity, 0);
         const curLevel = fuelStore.tanks.reduce((a, t) => a + t.currentLevel, 0);
         const tankPct = totalCap ? Math.round((curLevel / totalCap) * 100) : 0;
         tanks = fuelStore.tanks;
-        recentShifts = [...fuelStore.shifts]
+        recentShifts = [...fuelShifts]
             .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
             .slice(0, 6)
             .map(s => ({
@@ -483,7 +487,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             },
             {
                 label: 'Total Shifts',
-                value: `${fuelStore.shifts.length}`,
+                value: `${fuelStore.getFilteredShifts().length}`,
                 sub: 'All Time',
                 icon: <BarChart3 size={22} className="text-white" />,
                 color: 'violet',
@@ -522,16 +526,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             },
         ];
     } else if (bu === 'CNG') {
-        const todayShifts = cngStore.shifts.filter(s => s.startTime.startsWith(todayStr));
+        const cngShifts = cngStore.getFilteredShifts();
+        const todayShifts = cngShifts.filter(s => s.startTime.startsWith(todayStr));
         const closedToday = todayShifts.filter(s => s.status === 'CLOSED');
         const todaySales = closedToday.reduce((a, s) => a + s.totalRevenue, 0);
-        const activeStaff = staff.filter(
-            u => u.status === 'ACTIVE' && u.businessUnit === 'CNG'
-        ).length;
-        const totalStaff = staff.filter(u => u.businessUnit === 'CNG').length;
+        
+        const activeStaffList = staffStore.getActiveStaff();
+        const activeStaff = activeStaffList.length;
+        const totalStaff = staffStore.users.filter(u => u.businessUnit === 'CNG').length;
+        
         const activeComp = cngStore.compressors.filter(c => c.status !== 'MAINTENANCE' && c.status !== 'FAULT').length;
         const totalComp = cngStore.compressors.length;
-        recentShifts = [...cngStore.shifts]
+        recentShifts = [...cngShifts]
             .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
             .slice(0, 6)
             .map(s => ({
@@ -575,7 +581,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             },
             {
                 label: 'Total CNG Shifts',
-                value: `${cngStore.shifts.length}`,
+                value: `${cngStore.getFilteredShifts().length}`,
                 sub: 'All Time',
                 icon: <BarChart3 size={22} className="text-white" />,
                 color: 'blue',
@@ -614,18 +620,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             },
         ];
     } else {
-        const todayLube = lubeSales.filter(
-            s =>
-                s.businessUnit === 'LUBE' &&
-                s.timestamp.startsWith(todayStr) &&
-                s.status === 'COMPLETED'
-        );
-        const todaySales = todayLube.reduce((a, s) => a + (s.totalAmount || 0), 0);
-        const activeStaff = staff.filter(
-            u => u.status === 'ACTIVE' && u.businessUnit === 'LUBE'
-        ).length;
-        const totalStaff = staff.filter(u => u.businessUnit === 'LUBE').length;
-        const lubeProds = products.filter(p => p.businessUnit === 'LUBE');
+        const lubeSales = salesStore.getTodaySales();
+        const todaySales = lubeSales.reduce((a, s) => a + (s.totalAmount || 0), 0);
+        
+        const activeStaffList = staffStore.getActiveStaff();
+        const activeStaff = activeStaffList.length;
+        const totalStaff = staffStore.users.filter(u => u.businessUnit === 'LUBE').length;
+        
+        const lubeProds = productStore.getFilteredProducts();
         const lowStock = lubeProds.filter(p => p.currentStock <= p.reorderPoint).length;
         const totalStock = lubeProds.reduce((a, p) => a + p.currentStock, 0);
 
@@ -633,7 +635,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             {
                 label: 'Store Revenue Today',
                 value: `₨${fmt(todaySales)}`,
-                sub: `${todayLube.length} Txns`,
+                sub: `${lubeSales.length} Txns`,
                 icon: <TrendingUp size={22} className="text-white" />,
                 color: 'blue',
                 index: 0,
@@ -811,19 +813,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
             </motion.div>
 
             {/* ══ KPI GRID ══ */}
-            <motion.div
-                variants={FADE_UP}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
-            >
-                {kpis.map((k, i) => (
-                    <GlassKPICard
-                        key={k.label}
-                        {...k}
-                        index={i}
-                        onClick={() => onNavigate('/reports')}
-                    />
-                ))}
-            </motion.div>
+            {fuelStore.isLoading || cngStore.isLoading ? (
+                <SkeletonKPI />
+            ) : (
+                <motion.div
+                    variants={FADE_UP}
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
+                >
+                    {kpis.map((k, i) => (
+                        <GlassKPICard
+                            key={k.label}
+                            {...k}
+                            index={i}
+                            onClick={() => onNavigate('/reports')}
+                        />
+                    ))}
+                </motion.div>
+            )}
 
             {/* ══ MAIN GRID ══ */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -859,7 +865,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
                     </motion.div>
 
                     <AnimatePresence mode="wait">
-                        {activeTab === 'overview' ? (
+                        {fuelStore.isLoading || cngStore.isLoading ? (
+                            <motion.div
+                                key="loading-activity"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="space-y-6"
+                            >
+                                <Skeleton width="40%" height={24} className="rounded-xl" />
+                                <SkeletonList count={3} />
+                            </motion.div>
+                        ) : activeTab === 'overview' ? (
                             <motion.div
                                 key="overview"
                                 initial={{ opacity: 0, y: 12 }}

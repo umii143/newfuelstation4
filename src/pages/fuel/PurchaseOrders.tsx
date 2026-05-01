@@ -4,6 +4,7 @@ import { useSupplierStore } from '@/stores/dataStores';
 import { useFuelStore } from '@/stores/fuelStore';
 import { useCashBankStore } from '@/stores/ledgerStore';
 import { useProfitStore } from '@/stores/profitStore';
+import { useConfigStore } from '@/stores/configStore';
 import type { FuelType, POItem, PurchaseOrder } from '@/types';
 import { format } from 'date-fns';
 import { CheckCircle2, Plus, Search, TrendingUp, Truck } from 'lucide-react';
@@ -18,6 +19,14 @@ export const PurchaseOrdersPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
 
+    const { tankConfigs, rateConfigs } = useConfigStore();
+    const getSalePrice = (fuelType: string) => {
+        const rateConfig = rateConfigs.find(r => r.fuelType === fuelType);
+        if (rateConfig) return rateConfig.currentRate;
+        const tank = tankConfigs.find(t => t.fuelType === fuelType);
+        return tank?.salePrice || 0;
+    };
+
     // Form State
     const [selectedSupplier, setSelectedSupplier] = useState('');
     const [carriage, setCarriage] = useState(0);
@@ -29,7 +38,7 @@ export const PurchaseOrdersPage: React.FC = () => {
             quantity: 0,
             receivedQty: 0,
             purchaseRate: 0,
-            salePrice: 282.5,
+            salePrice: getSalePrice('PETROL_92'),
         },
     ]);
 
@@ -58,7 +67,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                 quantity: 0,
                 receivedQty: 0,
                 purchaseRate: 0,
-                salePrice: 295.0,
+                salePrice: getSalePrice('DIESEL'),
             },
         ]);
     };
@@ -147,7 +156,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                 quantity: 0,
                 receivedQty: 0,
                 purchaseRate: 0,
-                salePrice: 282.5,
+                salePrice: getSalePrice('PETROL_92'),
             },
         ]);
     };
@@ -346,11 +355,14 @@ export const PurchaseOrdersPage: React.FC = () => {
                                                 newItems[idx].productId = e.target.value;
                                                 newItems[idx].productName =
                                                     e.target.options[e.target.selectedIndex].text;
+                                                newItems[idx].salePrice = getSalePrice(e.target.value);
                                                 setItems(newItems);
                                             }}
                                         >
                                             <option value="PETROL_92">Petrol (Super)</option>
+                                            <option value="PETROL_95">Petrol 95</option>
                                             <option value="DIESEL">Diesel (HSD)</option>
+                                            <option value="PREMIUM_DIESEL">Premium Diesel</option>
                                         </select>
                                     </div>
                                     <div className="col-span-2">
@@ -384,7 +396,12 @@ export const PurchaseOrdersPage: React.FC = () => {
                                             label="Sale Rate"
                                             type="number"
                                             value={item.salePrice}
-                                            disabled
+                                            onChange={e => {
+                                                const newItems = [...items];
+                                                newItems[idx].salePrice =
+                                                    parseFloat(e.target.value) || 0;
+                                                setItems(newItems);
+                                            }}
                                         />
                                     </div>
                                     <div className="col-span-3 text-right">
@@ -428,7 +445,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                                 Cancel
                             </Button>
                             <Button
-                                className="bg-white text-blue-600 hover:bg-blue-50 font-black"
+                                className="!bg-white !text-blue-600 hover:!bg-blue-50 font-black"
                                 onClick={handleCreatePO}
                             >
                                 Confirm & Update Stock

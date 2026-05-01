@@ -21,6 +21,8 @@ import { useDiscountStore } from './discountStore';
 import { getStationId } from '@/lib/authHelpers';
 import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
+import { auditLogger } from '@/lib/auditLogger';
+import { stampBusinessScope } from '@/lib/businessScope';
 
 // ============================================
 // CUSTOMER LEDGER STORE
@@ -70,13 +72,13 @@ export const useCustomerLedgerStore = create<CustomerLedgerState>()(
                 const newBalance = lastBalance + entryData.debit - entryData.credit;
 
                 const { settings } = useSettingsStore.getState();
-                const newEntry: CustomerLedgerEntry = {
+                const newEntry = stampBusinessScope<CustomerLedgerEntry>({
                     ...entryData,
                     businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     id: `CLE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     timestamp: new Date().toISOString(),
                     balance: newBalance,
-                };
+                });
 
                 set(state => ({
                     entries: [...state.entries, newEntry].sort(
@@ -86,6 +88,8 @@ export const useCustomerLedgerStore = create<CustomerLedgerState>()(
                 
                 const sid = getStationId();
                 if (sid) fsSet(sid, COLLECTIONS.CUSTOMER_LEDGER, newEntry.id, newEntry);
+
+                auditLogger.log('LEDGER', 'CUSTOMER_ENTRY', `${entryData.type} of ₨${(entryData.debit || entryData.credit).toLocaleString()} for ${entryData.customerName}. New Balance: ₨${newBalance.toLocaleString()}`, newEntry.id);
             },
 
             getCustomerLedger: (customerId, filters) => {
@@ -183,7 +187,7 @@ export const useCustomerLedgerStore = create<CustomerLedgerState>()(
                         credit: 0,
                         fuelType: credit.fuelType,
                         liters: credit.liters,
-                        remarks: `Credit sale during ${shift.shiftType} shift`,
+                        remarks: credit.remarks || `Credit sale during ${shift.shiftType} shift`,
                     });
                 });
             },
@@ -250,13 +254,13 @@ export const useSupplierLedgerStore = create<SupplierLedgerState>()(
                 const newBalance = lastBalance + entryData.credit - entryData.debit;
 
                 const { settings } = useSettingsStore.getState();
-                const newEntry: SupplierLedgerEntry = {
+                const newEntry = stampBusinessScope<SupplierLedgerEntry>({
                     ...entryData,
                     businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     id: `SLE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     timestamp: new Date().toISOString(),
                     balance: newBalance,
-                };
+                });
 
                 set(state => ({
                     entries: [...state.entries, newEntry].sort(
@@ -266,6 +270,8 @@ export const useSupplierLedgerStore = create<SupplierLedgerState>()(
                 
                 const sid = getStationId();
                 if (sid) fsSet(sid, COLLECTIONS.SUPPLIER_LEDGER, newEntry.id, newEntry);
+
+                auditLogger.log('LEDGER', 'SUPPLIER_ENTRY', `${entryData.type} of ₨${(entryData.debit || entryData.credit).toLocaleString()} for ${entryData.supplierName}. New Balance: ₨${newBalance.toLocaleString()}`, newEntry.id);
             },
 
             getSupplierLedger: (supplierId, filters) => {
@@ -380,7 +386,7 @@ interface CashBankState {
     isLoading: boolean;
 
     // Account Operations
-    addAccount: (account: Omit<CashAccount, 'accountId' | 'createdAt'>) => void;
+    addAccount: (account: Omit<CashAccount, 'accountId' | 'createdAt' | 'businessUnit'>) => void;
     getAccounts: (type?: AccountType) => CashAccount[];
 
     // Ledger Operations
@@ -415,11 +421,14 @@ export const useCashBankStore = create<CashBankState>()(
             isLoading: false,
 
             addAccount: accountData => {
-                const newAccount: CashAccount = {
+                const { settings } = useSettingsStore.getState();
+                const newAccount = stampBusinessScope<CashAccount>({
                     ...accountData,
+                    stationId: getStationId(),
+                    businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     accountId: `ACC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     createdAt: new Date().toISOString(),
-                };
+                });
 
                 set(state => ({
                     accounts: [...state.accounts, newAccount],
@@ -430,7 +439,8 @@ export const useCashBankStore = create<CashBankState>()(
             },
 
             getAccounts: type => {
-                const accounts = get().accounts;
+                const { settings } = useSettingsStore.getState();
+                const accounts = get().accounts.filter(a => a.businessUnit === settings.businessUnit);
                 if (type) {
                     return accounts.filter(a => a.type === type);
                 }
@@ -450,13 +460,13 @@ export const useCashBankStore = create<CashBankState>()(
                 const newBalance = lastBalance + entryData.credit - entryData.debit;
 
                 const { settings } = useSettingsStore.getState();
-                const newEntry: CashLedgerEntry = {
+                const newEntry = stampBusinessScope<CashLedgerEntry>({
                     ...entryData,
                     businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     id: `CASHLE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     timestamp: new Date().toISOString(),
                     balance: newBalance,
-                };
+                });
 
                 set(state => ({
                     entries: [...state.entries, newEntry].sort(
@@ -466,6 +476,8 @@ export const useCashBankStore = create<CashBankState>()(
                 
                 const sid = getStationId();
                 if (sid) fsSet(sid, COLLECTIONS.CASH_LEDGER, newEntry.id, newEntry);
+
+                auditLogger.log('LEDGER', 'CASH_BANK_ENTRY', `${entryData.type} in ${entryData.accountName}: ₨${(entryData.debit || entryData.credit).toLocaleString()}. Reference: ${entryData.reference}`, newEntry.id);
             },
 
             getAccountLedger: (accountId, filters) => {
@@ -553,11 +565,16 @@ export const useCashBankStore = create<CashBankState>()(
                     transferAccountId: fromAccountId,
                     remarks: `Transfer from ${fromAccount.name}`,
                 });
+
+                auditLogger.log('LEDGER', 'CASH_TRANSFER', `Transferred ₨${amount.toLocaleString()} from ${fromAccount.name} to ${toAccount.name}`, reference);
             },
 
             postShiftExpenses: shift => {
                 const { addEntry, accounts } = get();
-                const cashAccount = accounts.find(a => a.type === 'CASH');
+                const { settings } = useSettingsStore.getState();
+                const cashAccount = accounts.find(
+                    a => a.type === 'CASH' && a.businessUnit === settings.businessUnit
+                );
 
                 if (!cashAccount) return;
 
@@ -582,12 +599,16 @@ export const useCashBankStore = create<CashBankState>()(
 
             postShiftDeposits: shift => {
                 const { transfer, accounts } = get();
-                const cashAccount = accounts.find(a => a.type === 'CASH');
+                const { settings } = useSettingsStore.getState();
+                const cashAccount = accounts.find(
+                    a => a.type === 'CASH' && a.businessUnit === settings.businessUnit
+                );
 
                 shift.bankDepositEntries?.forEach(deposit => {
                     const bankAccount = accounts.find(
                         a =>
                             a.type === 'BANK' &&
+                            a.businessUnit === settings.businessUnit &&
                             a.bankName?.toLowerCase().includes(deposit.bankName.toLowerCase())
                     );
 
@@ -607,10 +628,11 @@ export const useCashBankStore = create<CashBankState>()(
 
             postShiftDigitalCash: shift => {
                 const { addEntry, accounts } = get();
+                const { settings } = useSettingsStore.getState();
 
                 shift.digitalCashEntries?.forEach(digital => {
                     const walletAccount = accounts.find(
-                        a => a.type === 'DIGITAL_WALLET' && a.walletProvider === digital.method
+                        a => a.type === 'DIGITAL_WALLET' && a.walletProvider === digital.method && a.businessUnit === settings.businessUnit
                     );
 
                     if (walletAccount) {
@@ -670,7 +692,6 @@ export const postShiftToAllLedgers = (shift: Shift) => {
     shift.discountEntries?.forEach(discount => {
         discountStore.addDiscount({
             ...discount,
-            businessUnit: shift.businessUnit,
         });
     });
 
@@ -688,7 +709,7 @@ interface StaffLedgerState {
     entries: StaffLedgerEntry[];
     isLoading: boolean;
 
-    addEntry: (entry: Omit<StaffLedgerEntry, 'id' | 'timestamp' | 'balance'>) => void;
+    addEntry: (entry: Omit<StaffLedgerEntry, 'id' | 'timestamp' | 'balance' | 'businessUnit'>) => void;
     getStaffLedger: (userId: string, filters?: LedgerFilters) => StaffLedgerEntry[];
     getStaffBalance: (userId: string) => number;
     postShiftEarnings: (shift: Shift) => void;
@@ -701,7 +722,7 @@ export const useStaffLedgerStore = create<StaffLedgerState>()(
             entries: [],
             isLoading: false,
 
-            addEntry: (entryData: Omit<StaffLedgerEntry, 'id' | 'timestamp' | 'balance'>) => {
+            addEntry: (entryData: Omit<StaffLedgerEntry, 'id' | 'timestamp' | 'balance' | 'businessUnit'>) => {
                 const entries = get().entries;
                 const staffEntries = entries.filter(e => e.userId === entryData.userId);
                 const lastBalance =
@@ -709,14 +730,17 @@ export const useStaffLedgerStore = create<StaffLedgerState>()(
 
                 // For Staff: Debit = Payment to staff, Credit = Earning (Station owes staff).
                 // Balance = Earning - Payment.
+                // Balance = Earning - Payment.
                 const newBalance = lastBalance + entryData.credit - entryData.debit;
-
-                const newEntry: StaffLedgerEntry = {
+                
+                const { settings } = useSettingsStore.getState();
+                const newEntry = stampBusinessScope<StaffLedgerEntry>({
                     ...entryData,
+                    businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     id: `STFLE-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     timestamp: new Date().toISOString(),
                     balance: newBalance,
-                };
+                });
 
                 set(state => ({
                     entries: [...state.entries, newEntry].sort(
@@ -729,7 +753,10 @@ export const useStaffLedgerStore = create<StaffLedgerState>()(
             },
 
             getStaffLedger: (userId: string, filters?: LedgerFilters) => {
-                let ledger = get().entries.filter(e => e.userId === userId);
+                const { settings } = useSettingsStore.getState();
+                let ledger = get().entries.filter(
+                    e => e.userId === userId && e.businessUnit === settings.businessUnit
+                );
                 if (filters?.startDate) ledger = ledger.filter(e => e.date >= filters.startDate!);
                 if (filters?.endDate) ledger = ledger.filter(e => e.date <= filters.endDate!);
                 if (filters?.type) ledger = ledger.filter(e => e.type === filters.type);
@@ -740,7 +767,10 @@ export const useStaffLedgerStore = create<StaffLedgerState>()(
             },
 
             getStaffBalance: (userId: string) => {
-                const entries = get().entries.filter(e => e.userId === userId);
+                const { settings } = useSettingsStore.getState();
+                const entries = get().entries.filter(
+                    e => e.userId === userId && e.businessUnit === settings.businessUnit
+                );
                 if (entries.length === 0) return 0;
                 const totalCredit = entries.reduce((sum, e) => sum + e.credit, 0);
                 const totalDebit = entries.reduce((sum, e) => sum + e.debit, 0);
@@ -808,11 +838,11 @@ export const useAuditStore = create<AuditState>()(
             isLoading: false,
 
             addLog: (logData: Omit<AuditLog, 'id' | 'timestamp'>) => {
-                const newLog: AuditLog = {
+                const newLog = stampBusinessScope<AuditLog>({
                     ...logData,
                     id: `AUD-${Date.now()}`,
                     timestamp: new Date().toISOString(),
-                };
+                }, ['FUEL', 'CNG', 'LUBE'].includes(logData.module) ? logData.module : useSettingsStore.getState().settings.businessUnit);
                 set(state => ({ logs: [newLog, ...state.logs] }));
                 
                 const sid = getStationId();

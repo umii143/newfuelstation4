@@ -236,8 +236,38 @@ export const TanksPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="pt-4 border-t border-[var(--border)] flex justify-between items-center">
-                                    <div className="grid grid-cols-2 gap-4 flex-1">
+                                <div className="pt-4 border-t border-[var(--border)]">
+                                    <div className="mb-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-2">Forensic Telemetry</p>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <div className="bg-[var(--bg-surface)] p-2 rounded-xl border border-[var(--border)]">
+                                                <p className="text-[9px] uppercase font-bold text-[var(--text-secondary)]">
+                                                    Last Arrival
+                                                </p>
+                                                <p className="text-xs font-bold text-[var(--text-primary)] truncate mt-0.5">
+                                                    {new Date(tank.lastUpdated || Date.now()).toLocaleDateString('en-PK')}
+                                                </p>
+                                            </div>
+                                            <div className="bg-[var(--bg-surface)] p-2 rounded-xl border border-[var(--border)]">
+                                                <p className="text-[9px] uppercase font-bold text-[var(--text-secondary)]">
+                                                    Avg Stock Rate
+                                                </p>
+                                                <p className="text-xs font-bold text-[var(--text-primary)] truncate mt-0.5">
+                                                    ₨{tank.costPrice?.toFixed(2) || '0.00'}
+                                                </p>
+                                            </div>
+                                            <div className="bg-[var(--bg-surface)] p-2 rounded-xl border border-[var(--border)]">
+                                                <p className="text-[9px] uppercase font-bold text-[var(--text-secondary)]">
+                                                    Est. Dead Stock
+                                                </p>
+                                                <p className="text-xs font-bold text-rose-500 truncate mt-0.5">
+                                                    {((tank.capacity ?? 0) * 0.02).toFixed(0)} L
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-3 border-t border-[var(--border)]">
+                                        <div className="grid grid-cols-2 gap-4 flex-1">
                                         <div>
                                             <p className="text-[10px] uppercase font-bold text-[var(--text-secondary)]">
                                                 Available Space
@@ -273,6 +303,7 @@ export const TanksPage: React.FC = () => {
                                         <PackagePlus size={14} className="mr-1" />
                                         Receive
                                     </Button>
+                                    </div>
                                 </div>
                             </div>
                         </Card>

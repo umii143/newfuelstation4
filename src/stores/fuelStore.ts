@@ -18,6 +18,8 @@ import { useAuthStore } from './authStore';
 import { useCashBankStore, useCustomerLedgerStore, useSupplierLedgerStore } from './ledgerStore';
 import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
+import { auditLogger } from '@/lib/auditLogger';
+import { stampBusinessScope } from '@/lib/businessScope';
 
 // ============================================
 // WIZARD INITIAL STATE
@@ -68,6 +70,7 @@ const defaultTanks: Tank[] = [
         reorderPoint: 5000,
         lastUpdated: new Date().toISOString(),
         nozzles: ['NZL-1', 'NZL-2'],
+        businessUnit: 'FUEL',
     },
     {
         tankId: 'TNK-2',
@@ -81,6 +84,7 @@ const defaultTanks: Tank[] = [
         reorderPoint: 8000,
         lastUpdated: new Date().toISOString(),
         nozzles: ['NZL-3', 'NZL-4'],
+        businessUnit: 'FUEL',
     },
 ];
 
@@ -93,6 +97,7 @@ const defaultNozzles: Nozzle[] = [
         currentReading: 45200.5,
         testVolume: 0,
         status: 'ACTIVE',
+        businessUnit: 'FUEL',
     },
     {
         nozzleId: 'NZL-2',
@@ -102,6 +107,7 @@ const defaultNozzles: Nozzle[] = [
         currentReading: 32180.2,
         testVolume: 0,
         status: 'ACTIVE',
+        businessUnit: 'FUEL',
     },
     {
         nozzleId: 'NZL-3',
@@ -111,6 +117,7 @@ const defaultNozzles: Nozzle[] = [
         currentReading: 88500.0,
         testVolume: 0,
         status: 'ACTIVE',
+        businessUnit: 'FUEL',
     },
     {
         nozzleId: 'NZL-4',
@@ -120,6 +127,7 @@ const defaultNozzles: Nozzle[] = [
         currentReading: 41250.8,
         testVolume: 0,
         status: 'ACTIVE',
+        businessUnit: 'FUEL',
     },
 ];
 
@@ -172,6 +180,7 @@ interface FuelState {
     getCalculatedRevenue: () => number;
     getExpectedCash: () => number;
     getCashVariance: () => number;
+    getFilteredShifts: () => Shift[];
 }
 
 export const useFuelStore = create<FuelState>()(
@@ -226,6 +235,12 @@ export const useFuelStore = create<FuelState>()(
                     set({ tanks: activeTanks, nozzles: activeNozzles });
                 }
 
+                // Resolve stationId from auth context so Firestore persistence works
+                const stationId = getStationId();
+                const authState = useAuthStore.getState();
+                const staffId = ('userId' in (authState.user || {}) ? (authState.user as any)?.userId : (authState.user as any)?.id) || 'STAFF-UNSET';
+                const staffName = (authState.user as any)?.name || (authState.user as any)?.fullName || 'Staff';
+
                 const readings: NozzleReading[] = activeNozzles.map(n => {
                     const tank = activeTanks.find(t => t.tankId === n.tankId);
                     return {
@@ -268,7 +283,10 @@ export const useFuelStore = create<FuelState>()(
                         ...initialClosingState,
                         isOpen: true,
                         shiftId: `SH-${Date.now()}`,
+                        stationId,
                         startTime: new Date().toISOString(),
+                        staffId,
+                        staffName,
                         readings,
                         nozzleSales,
                     },
@@ -280,17 +298,33 @@ export const useFuelStore = create<FuelState>()(
             },
 
             updateTank: (tankId, updates) => {
-                set(state => ({
-                    tanks: state.tanks.map(t => (t.tankId === tankId ? { ...t, ...updates } : t)),
-                }));
+                set(state => {
+                    const updatedTanks = state.tanks.map(t => (t.tankId === tankId ? { ...t, ...updates } : t));
+                    // Persist to Firestore
+                    const sid = getStationId();
+                    const updatedTank = updatedTanks.find(t => t.tankId === tankId);
+                    if (sid && updatedTank) {
+                        fsSet(sid, COLLECTIONS.FUEL_TANKS, tankId, updatedTank);
+                        auditLogger.log('FUEL', 'TANK_UPDATE', `Tank ${updatedTank.name} configuration updated.`, tankId);
+                    }
+                    return { tanks: updatedTanks };
+                });
             },
 
             updateNozzle: (nozzleId, updates) => {
-                set(state => ({
-                    nozzles: state.nozzles.map(n =>
+                set(state => {
+                    const updatedNozzles = state.nozzles.map(n =>
                         n.nozzleId === nozzleId ? { ...n, ...updates } : n
-                    ),
-                }));
+                    );
+                    // Persist to Firestore
+                    const sid = getStationId();
+                    const updatedNozzle = updatedNozzles.find(n => n.nozzleId === nozzleId);
+                    if (sid && updatedNozzle) {
+                        fsSet(sid, COLLECTIONS.NOZZLE_CONFIGS, nozzleId, updatedNozzle);
+                        auditLogger.log('FUEL', 'NOZZLE_UPDATE', `Nozzle ${updatedNozzle.name} configuration updated.`, nozzleId);
+                    }
+                    return { nozzles: updatedNozzles };
+                });
             },
 
             updateFuelPrice: (tankId, costPrice, salePrice) => {
@@ -309,6 +343,20 @@ export const useFuelStore = create<FuelState>()(
                     const nozzles = state.nozzles.map(n =>
                         n.tankId === tankId ? { ...n, rate: salePrice } : n
                     );
+
+                    // Persist price changes to Firestore
+                    const sid = getStationId();
+                    if (sid) {
+                        const updatedTank = tanks.find(t => t.tankId === tankId);
+                        if (updatedTank) {
+                            auditLogger.priceChange(updatedTank.name, state.tanks.find(t => t.tankId === tankId)?.salePrice || 0, salePrice, 'FUEL');
+                            fsSet(sid, COLLECTIONS.TANK_CONFIGS, tankId, updatedTank);
+                        }
+                        // Persist affected nozzles
+                        nozzles.filter(n => n.tankId === tankId).forEach(n => {
+                            fsSet(sid, COLLECTIONS.NOZZLE_CONFIGS, n.nozzleId, n);
+                        });
+                    }
 
                     return { tanks, nozzles };
                 });
@@ -546,25 +594,45 @@ export const useFuelStore = create<FuelState>()(
                     }
 
                     // Create Local Shift
-                    const closedShift: Shift = {
+                    // Use the date selected in the wizard (Step 1), NOT the current date
+                    const shiftDate = closingState.startTime
+                        ? new Date(closingState.startTime).toISOString().split('T')[0]
+                        : new Date().toISOString().split('T')[0];
+
+                    const closedShift = stampBusinessScope<Shift>({
                         shiftId: closingState.shiftId,
                         stationId: getStationId(),
                         businessUnit: 'FUEL',
-                        date: new Date().toISOString().split('T')[0],
-                        shiftNumber: get().shifts.filter(s => s.date === new Date().toISOString().split('T')[0]).length + 1,
-                        shiftType: 'MORNING' as any,
+                        date: shiftDate,
+                        shiftNumber: get().shifts.filter(s => s.date === shiftDate).length + 1,
+                        shiftType: closingState.shiftType || 'MORNING',
                         staffId: closingState.staffId,
                         staffName: closingState.staffName,
-                        startTime: new Date().toISOString(),
+                        startTime: closingState.startTime || new Date().toISOString(),
                         endTime: new Date().toISOString(),
                         openingReadings: closingState.readings.map(r => ({
                             nozzleId: r.nozzleId,
                             nozzleName: r.nozzleName || '',
                             fuelType: r.fuelType as any,
                             reading: r.opening,
-                            timestamp: new Date().toISOString(),
+                            timestamp: closingState.startTime || new Date().toISOString(),
                         })),
-                        nozzleSales: [],
+                        nozzleSales: closingState.readings.map(r => {
+                            const netSales = r.netLiters || 0;
+                            return {
+                                nozzleId: r.nozzleId,
+                                nozzleName: r.nozzleName || '',
+                                fuelType: r.fuelType as any,
+                                openingReading: r.opening,
+                                closingReading: r.closing,
+                                testVolume: r.test || 0,
+                                netSales,
+                                rate: r.rate || 0,
+                                revenue: r.revenue || 0,
+                                costPrice: r.costPrice || 0,
+                                margin: (r.rate || 0) - (r.costPrice || 0),
+                            };
+                        }),
                         totalLitersSold: closingState.readings.reduce(
                             (sum, r) => sum + (r.netLiters || 0),
                             0
@@ -598,6 +666,7 @@ export const useFuelStore = create<FuelState>()(
                                 liters: t.liters || t.amount / 280,
                                 previousBalance: 0,
                                 newBalance: 0,
+                                remarks: t.description,
                                 shiftId: closingState.shiftId,
                                 timestamp: new Date().toISOString(),
                             })),
@@ -645,7 +714,7 @@ export const useFuelStore = create<FuelState>()(
                                 shiftId: closingState.shiftId,
                                 timestamp: new Date().toISOString(),
                             })),
-                    };
+                    });
 
                     try {
                         useCustomerLedgerStore.getState().postShiftCredits(closedShift);
@@ -679,6 +748,8 @@ export const useFuelStore = create<FuelState>()(
                         shifts: [closedShift, ...state.shifts],
                     }));
 
+                    auditLogger.log('FUEL', 'SHIFT_CLOSE', `Shift #${closedShift.shiftId} completed by ${closedShift.staffName} with variance ₨${closedShift.variance.toFixed(2)}`, closedShift.shiftId);
+
                     return closedShift;
                 } catch (error: any) {
                     set({ error: error.message, isLoading: false });
@@ -686,16 +757,29 @@ export const useFuelStore = create<FuelState>()(
                 }
             },
 
-            getTanksByFuelType: type => get().tanks.filter(t => t.fuelType === type),
+            getTanksByFuelType: type => {
+                const { settings } = useAuthStore.getState();
+                return get().tanks.filter(t => t.fuelType === type && t.businessUnit === settings.businessUnit);
+            },
             getTankFillPercentage: id => {
-                const t = get().tanks.find(tank => tank.tankId === id);
+                const { settings } = useAuthStore.getState();
+                const t = get().tanks.find(tank => tank.tankId === id && tank.businessUnit === settings.businessUnit);
                 return t ? (t.currentLevel / t.capacity) * 100 : 0;
             },
-            getNozzlesForTank: id => get().nozzles.filter(n => n.tankId === id),
+            getNozzlesForTank: id => {
+                const { settings } = useAuthStore.getState();
+                return get().nozzles.filter(n => n.tankId === id && n.businessUnit === settings.businessUnit);
+            },
             getCalculatedRevenue: () =>
                 get().closingState.readings.reduce((sum, n) => sum + n.revenue, 0),
             getExpectedCash: () => get().closingState.expectedCash,
             getCashVariance: () => get().closingState.variance,
+
+            getFilteredShifts: () => {
+                const { settings } = useAuthStore.getState();
+                const { shifts } = get();
+                return shifts.filter(s => s.businessUnit === settings.businessUnit);
+            },
         }),
         {
             name: 'motorway-fuel-store',

@@ -66,4 +66,5 @@ export const COLLECTIONS = {
     NOZZLE_CONFIGS: 'nozzleConfigs',
     TANK_CONFIGS: 'tankConfigs',
     STATION_PROFILE: 'stationProfile',
+    PURCHASE_ORDERS: 'purchaseOrders',
 } as const;

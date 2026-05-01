@@ -16,6 +16,19 @@ export type UserRole =
     | 'CLEANER'
     | 'OFFICE_STAFF';
 
+// ============================================
+// SOFT-DELETE MIXIN
+// Every record that supports soft-delete must extend this.
+// Hard deletes are FORBIDDEN — use is_deleted flag instead.
+// ============================================
+export interface SoftDeletable {
+    is_deleted?: boolean;
+    deleted_at?: string | null;
+    deleted_by?: string | null;
+    updated_at?: string;
+    updated_by?: string;
+}
+
 // User/Staff
 export interface User {
     userId: string;
@@ -74,6 +87,7 @@ export type FuelType = 'PETROL_92' | 'PETROL_95' | 'DIESEL' | 'PREMIUM_DIESEL' |
 export interface Tank {
     tankId: string;
     stationId: string;
+    businessUnit: 'FUEL' | 'LUBE' | 'CNG';
     name: string;
     fuelType: FuelType;
     capacity: number; // Liters
@@ -94,6 +108,7 @@ export interface Nozzle {
     currentReading: number;
     testVolume: number; // Default test volume per shift
     status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
+    businessUnit: 'FUEL' | 'LUBE' | 'CNG';
     costPrice?: number;
     rate?: number;
 }
@@ -309,6 +324,7 @@ export interface CreditEntry {
     newBalance: number;
     fuelType?: FuelType;
     liters?: number;
+    remarks?: string;
     shiftId: string;
     timestamp: string;
 }
@@ -550,6 +566,7 @@ export interface ProfitLedgerEntry {
     cost: number;
     carriage: number;
     netProfit: number;
+    businessUnit: 'FUEL' | 'LUBE' | 'CNG';
     timestamp: string;
 }
 
@@ -748,6 +765,7 @@ export type AccountType = 'CASH' | 'BANK' | 'DIGITAL_WALLET';
 export interface CashAccount {
     accountId: string;
     stationId: string;
+    businessUnit: 'FUEL' | 'LUBE' | 'CNG';
     name: string;
     type: AccountType;
     bankName?: string;
@@ -927,7 +945,7 @@ export interface DiscountEntry {
     timestamp: string;
     createdBy: string;
     createdByName: string;
-    businessUnit?: 'FUEL' | 'LUBE' | 'CNG';
+    businessUnit: 'FUEL' | 'LUBE' | 'CNG';
 }
 
 export type DiscountReason =
@@ -1335,12 +1353,14 @@ export type StaffTransactionType =
     | 'BONUS'
     | 'DEDUCTION'
     | 'LOAN'
-    | 'SHIFT_EARNING';
+    | 'SHIFT_EARNING'
+    | 'EXPENSE';
 
 export interface StaffLedgerEntry {
     id: string;
     userId: string;
     userName: string;
+    businessUnit: 'FUEL' | 'LUBE' | 'CNG';
     date: string;
     timestamp: string;
     type: StaffTransactionType;
@@ -1357,10 +1377,17 @@ export interface StaffLedgerEntry {
 export interface AuditLog {
     id: string;
     action: string;
-    module: string; // e.g., 'FUEL_RATES', 'STAFF_MANAGEMENT'
+    module: string; // e.g., 'FUEL', 'CNG', 'LUBE', 'SYSTEM'
     userId: string;
     userName: string;
     details: string; // e.g., 'Changed Petrol rate from 280 to 285'
     timestamp: string;
     severity: 'INFO' | 'WARNING' | 'CRITICAL';
+    // Enhanced fields for audit report #46-50 (entity-level tracking)
+    entityType?: string;   // e.g., 'SHIFT', 'CUSTOMER', 'PRODUCT'
+    entityId?: string;     // ID of the affected record
+    oldValue?: string;     // JSON stringified old value (for data change history)
+    newValue?: string;     // JSON stringified new value
+    ipAddress?: string;    // For login/access audit
+    sessionId?: string;    // For session tracking
 }

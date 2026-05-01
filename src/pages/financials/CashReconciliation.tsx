@@ -1,3 +1,5 @@
+import { useAuthStore } from '@/stores/authStore';
+import { useCNGStore } from '@/stores/cngStore';
 import { useFuelStore } from '@/stores/fuelStore';
 import { useCashBankStore } from '@/stores/ledgerStore';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -49,7 +51,13 @@ const varianceLabel = (v: number) => {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const CashReconciliation: React.FC = () => {
-    const { shifts } = useFuelStore();
+    const { settings } = useAuthStore();
+    const isCNG = settings.businessUnit === 'CNG';
+    
+    const fuelStore = useFuelStore();
+    const cngStore = useCNGStore();
+    
+    const shifts = isCNG ? cngStore.shifts : fuelStore.shifts;
     const { accounts, getAccountBalance } = useCashBankStore();
 
     const [enteredCash, setEnteredCash] = useState('');

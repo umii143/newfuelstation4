@@ -5,6 +5,8 @@ import { persist } from 'zustand/middleware';
 import { useCashBankStore, useCustomerLedgerStore, useSupplierLedgerStore } from './ledgerStore';
 import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
+import { auditLogger } from '@/lib/auditLogger';
+import { stampBusinessScope } from '@/lib/businessScope';
 
 // CNG Specific Types
 export interface CascadeBank {
@@ -71,6 +73,7 @@ interface CNGState {
     updateCompressorStatus: (compressorId: string, updates: Partial<CNGCompressor>) => void;
     addDecantingRecord: (record: Omit<DecantingRecord, 'id' | 'createdAt'>) => void;
     adjustCNGStock: (deltaKG: number) => void;
+    getFilteredShifts: () => Shift[];
 }
 
 const initialWizardState: ShiftClosingWizardState = {
@@ -115,6 +118,7 @@ const defaultCNGNozzles: Nozzle[] = [
         status: 'ACTIVE',
         tankId: 'CNG-SOURCE',
         rate: 200,
+        businessUnit: 'CNG',
     },
     {
         nozzleId: 'CNG-NZL-2',
@@ -125,6 +129,7 @@ const defaultCNGNozzles: Nozzle[] = [
         status: 'ACTIVE',
         tankId: 'CNG-SOURCE',
         rate: 200,
+        businessUnit: 'CNG',
     },
 ];
 
@@ -153,6 +158,9 @@ export const useCNGStore = create<CNGState>()(
                     decantingRecords: [newRecord, ...state.decantingRecords],
                     totalCNGStock: state.totalCNGStock + record.totalKG,
                 }));
+
+                auditLogger.log('CNG', 'DECANTING', `CNG decanting received: ${record.totalKG}kg from ${record.supplier}. Total Cost: ₨${record.totalCost.toLocaleString()}`, newRecord.id);
+
                 // Post to supplier ledger if supplierId provided
                 if (record.supplierId) {
                     useSupplierLedgerStore.getState().addEntry({
@@ -211,6 +219,9 @@ export const useCNGStore = create<CNGState>()(
                     set({ nozzles: activeNozzles });
                 }
 
+                // Resolve stationId from auth context so Firestore persistence works
+                const stationId = getStationId();
+
                 const readings: NozzleReading[] = activeNozzles.map(n => ({
                     nozzleId: n.nozzleId,
                     nozzleName: n.name,
@@ -231,6 +242,7 @@ export const useCNGStore = create<CNGState>()(
                         ...initialWizardState,
                         isOpen: true,
                         shiftId: `CNG-SH-${Date.now()}`,
+                        stationId,
                         startTime: new Date().toISOString(),
                         staffId,
                         staffName,
@@ -353,7 +365,7 @@ export const useCNGStore = create<CNGState>()(
                     });
 
                     // Ledger updates
-                    const closedShift: Shift = {
+                    const closedShift = stampBusinessScope<Shift>({
                         shiftId: closingState.shiftId,
                         stationId: getStationId(),
                         businessUnit: 'CNG',
@@ -452,7 +464,7 @@ export const useCNGStore = create<CNGState>()(
                                 shiftId: closingState.shiftId,
                                 timestamp: new Date().toISOString(),
                             })),
-                    };
+                    });
 
                     try {
                         useCustomerLedgerStore.getState().postShiftCredits(closedShift);
@@ -484,6 +496,8 @@ export const useCNGStore = create<CNGState>()(
                         isLoading: false,
                     }));
 
+                    auditLogger.log('CNG', 'SHIFT_CLOSE', `CNG Shift #${closedShift.shiftId} closed by ${closedShift.staffName}. Total Sales: ₨${closedShift.totalRevenue.toLocaleString()}`, closedShift.shiftId);
+
                     return closedShift;
                 } catch (error: any) {
                     console.error('Critical Error in completeShiftClosing (CNG):', error);
@@ -493,19 +507,40 @@ export const useCNGStore = create<CNGState>()(
             },
 
             updateCascadePressure: (bankId, pressure) => {
-                set(state => ({
-                    cascades: state.cascades.map(c =>
+                set(state => {
+                    const updatedCascades = state.cascades.map(c =>
                         c.bankId === bankId ? { ...c, pressure } : c
-                    ),
-                }));
+                    );
+                    // Persist to Firestore
+                    const sid = getStationId();
+                    const updated = updatedCascades.find(c => c.bankId === bankId);
+                    if (sid && updated) {
+                        fsSet(sid, COLLECTIONS.CNG_CASCADES, bankId, updated);
+                        auditLogger.log('CNG', 'CASCADE_PRESSURE', `Cascade Bank ${updated.name} pressure updated to ${pressure} bar.`, bankId);
+                    }
+                    return { cascades: updatedCascades };
+                });
             },
 
             updateCompressorStatus: (compressorId, updates) => {
-                set(state => ({
-                    compressors: state.compressors.map(c =>
+                set(state => {
+                    const updatedCompressors = state.compressors.map(c =>
                         c.compressorId === compressorId ? { ...c, ...updates } : c
-                    ),
-                }));
+                    );
+                    // Persist to Firestore
+                    const sid = getStationId();
+                    const updated = updatedCompressors.find(c => c.compressorId === compressorId);
+                    if (sid && updated) {
+                        fsSet(sid, 'compressors', compressorId, updated);
+                        auditLogger.log('CNG', 'COMPRESSOR_STATUS', `Compressor ${updated.name} status updated to ${updated.status}.`, compressorId);
+                    }
+                    return { compressors: updatedCompressors };
+                });
+            },
+
+            getFilteredShifts: () => {
+                const { shifts } = get();
+                return shifts.filter(s => s.businessUnit === 'CNG');
             },
         }),
         {

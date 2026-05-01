@@ -9,8 +9,8 @@ import React, { useState } from 'react';
 
 export const CNGShiftsPage: React.FC = () => {
     const { shifts, openClosingWizard, closeClosingWizard, isClosingWizardOpen } = useCNGStore();
-    const { users } = useStaffStore();
-    const activeStaff = users.filter(u => u.status === 'ACTIVE');
+    const { getActiveStaff } = useStaffStore();
+    const activeStaff = getActiveStaff();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedShift, setSelectedShift] = useState<any | null>(null);

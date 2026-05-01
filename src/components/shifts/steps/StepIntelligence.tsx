@@ -72,10 +72,10 @@ export const StepIntelligence: React.FC<StepProps> = ({ data }) => {
     // ── Real Calculations (from actual nozzle readings) ────────────────────
     const totalRevenue = readings.reduce((s, r) => s + (r.revenue || 0), 0);
     const totalLiters = readings.reduce((s, r) => s + (r.netLiters || 0), 0);
-    // Cost = costPrice per liter × liters sold. If costPrice is missing, estimate 85% of sale rate
+    // Cost = costPrice per liter × liters sold (uses actual tank cost price, no estimation)
     const totalCost = readings.reduce((s, r) => {
         const liters = r.netLiters || 0;
-        const costPrice = r.costPrice ?? (r.rate ? r.rate * 0.92 : 0);
+        const costPrice = r.costPrice || 0;
         return s + costPrice * liters;
     }, 0);
     const grossProfit = totalRevenue - totalCost;
@@ -97,7 +97,7 @@ export const StepIntelligence: React.FC<StepProps> = ({ data }) => {
         if (!acc[r.fuelType]) acc[r.fuelType] = { liters: 0, revenue: 0, cost: 0, nozzles: [] };
         acc[r.fuelType].liters += r.netLiters || 0;
         acc[r.fuelType].revenue += r.revenue || 0;
-        acc[r.fuelType].cost += (r.costPrice ?? (r.rate ? r.rate * 0.92 : 0)) * (r.netLiters || 0);
+        acc[r.fuelType].cost += (r.costPrice || 0) * (r.netLiters || 0);
         if (!acc[r.fuelType].nozzles.includes(r.nozzleName))
             acc[r.fuelType].nozzles.push(r.nozzleName);
         return acc;

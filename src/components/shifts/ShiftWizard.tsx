@@ -6,7 +6,9 @@
 import { useToast } from '@/contexts/ToastContext';
 import { useAuthStore } from '@/stores/authStore';
 import { useCNGStore } from '@/stores/cngStore';
+import { useConfigStore } from '@/stores/configStore';
 import { useFuelStore } from '@/stores/fuelStore';
+import { useAuditStore } from '@/stores/ledgerStore';
 import { ShiftClosingWizardState } from '@/types';
 import { StepProps } from '@/types/wizard';
 import clsx from 'clsx';
@@ -143,6 +145,7 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [direction, setDirection] = useState<'forward' | 'back'>('forward');
     const scrollRef = useRef<HTMLDivElement>(null);
+    const { addLog } = useAuditStore();
 
     useEffect(() => {
         if (isOpen) {
@@ -158,11 +161,12 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
 
     const initializeWizardData = (m: ShiftMode): Partial<StepData> => {
         const store = m === 'FUEL' ? fuelStore : cngStore;
+        const configStore = useConfigStore.getState();
         return {
             startTime: new Date().toISOString(),
             shiftType: new Date().getHours() < 18 ? 'MORNING' : 'EVENING',
             readings: store.nozzles.map((n: any) => {
-                const tank = (store as any).tanks?.find((t: any) => t.tankId === n.tankId);
+                const tank = configStore.tankConfigs.find(t => t.tankId === n.tankId);
                 return {
                     nozzleId: n.nozzleId || n.id,
                     nozzleName: n.name,
@@ -233,6 +237,17 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
                 closedBy: (user as any)?.name || 'System',
             } as any);
             await store.completeShiftClosing();
+
+            // Log event to Audit Vault
+            addLog({
+                userId: (user as any)?.userId || 'SYS',
+                userName: (user as any)?.name || 'System Admin',
+                action: `Closed ${mode} Shift: #${wizardData.shiftId || 'Unknown'}`,
+                module: 'SHIFT_OPERATIONS',
+                severity: 'INFO',
+                details: `${(user as any)?.name || 'Admin'} finalized the ${(wizardData.shiftType || '').toLowerCase()} shift for staff ID: ${wizardData.staffId}.`,
+            });
+
             onClose();
         } catch (err) {
             console.error('Shift commit error:', err);
@@ -272,7 +287,8 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
                         'linear-gradient(135deg,rgba(2,6,23,0.85) 0%,rgba(15,23,42,0.90) 100%)',
                     backdropFilter: 'blur(24px) saturate(180%)',
                 }}
-                onClick={e => e.target === e.currentTarget && onClose()}
+                // Backdrop click intentionally disabled to prevent accidental data loss
+                // onClick={e => e.target === e.currentTarget && onClose()}
             >
                 {/* Ambient background glows */}
                 <motion.div
@@ -665,9 +681,10 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
                                     initial="enter"
                                     animate="center"
                                     exit="exit"
+                                    className="min-h-[300px]"
                                 >
                                     <CurrentStep
-                                        data={wizardData as StepData}
+                                        data={wizardData as ShiftClosingWizardState}
                                         onUpdate={handleUpdate}
                                         mode={mode}
                                     />
@@ -677,7 +694,7 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
 
                         {/* ────────────── FOOTER ────────────── */}
                         <div
-                            className="relative z-10 flex-shrink-0 flex items-center justify-between px-6 py-4 border-t border-gray-100/80 dark:border-white/[0.06]"
+                            className="relative z-10 flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-4 sm:py-5 border-t border-gray-100/80 dark:border-white/[0.06] pb-[calc(1rem+env(safe-area-inset-bottom,16px))] sm:pb-5"
                             style={{
                                 background: 'rgba(248,250,252,0.8)',
                                 backdropFilter: 'blur(8px)',
@@ -698,14 +715,14 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
                                 onClick={goBack}
                                 disabled={currentStep === 1}
                                 className={clsx(
-                                    'relative flex items-center gap-1.5 px-5 h-11 rounded-2xl text-sm font-black uppercase tracking-wide transition-all duration-200',
-                                    currentStep === 1
-                                        ? 'opacity-0 pointer-events-none'
-                                        : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.07] border-2 border-gray-200/80 dark:border-white/[0.08]'
-                                )}
-                            >
-                                <ChevronLeft size={15} /> Back
-                            </motion.button>
+                                'relative flex items-center gap-1.5 px-3 sm:px-5 h-11 rounded-2xl text-sm font-black uppercase tracking-wide transition-all duration-200',
+                                currentStep === 1
+                                    ? 'opacity-0 pointer-events-none'
+                                    : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.07] border-2 border-gray-200/80 dark:border-white/[0.08]'
+                            )}
+                        >
+                            <ChevronLeft size={15} /> <span className="hidden sm:inline">Back</span>
+                        </motion.button>
 
                             {/* Step progress dots (center) */}
                             <div className="flex items-center gap-1.5">
@@ -739,7 +756,7 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
                                     onClick={goNext}
                                     disabled={!canProceed}
                                     className={clsx(
-                                        'relative overflow-hidden flex items-center gap-2 px-6 h-11 rounded-2xl text-sm font-black uppercase tracking-wide transition-all duration-200',
+                                        'relative overflow-hidden flex items-center gap-2 px-4 sm:px-6 h-11 rounded-2xl text-sm font-black uppercase tracking-wide transition-all duration-200',
                                         canProceed
                                             ? 'text-white'
                                             : 'bg-gray-100 dark:bg-white/[0.05] text-gray-300 dark:text-slate-600 cursor-not-allowed border-2 border-gray-200/60 dark:border-white/[0.05]'
@@ -769,7 +786,8 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
                                             }}
                                         />
                                     )}
-                                    <span className="relative">Proceed</span>
+                                    <span className="relative hidden sm:inline">Proceed</span>
+                                    <span className="relative sm:hidden">Next</span>
                                     <ChevronRight size={15} className="relative" />
                                 </motion.button>
                             ) : (
@@ -804,11 +822,12 @@ export const ShiftWizard: React.FC<ShiftWizardProps> = ({ isOpen, onClose, mode 
                                         {isSubmitting ? (
                                             <>
                                                 <Loader2 size={14} className="animate-spin" />{' '}
-                                                Committing…
+                                                <span className="hidden sm:inline">Committing…</span>
                                             </>
                                         ) : (
                                             <>
-                                                <Zap size={14} /> Commit Shift
+                                                <Zap size={14} /> <span className="hidden sm:inline">Commit Shift</span>
+                                                <span className="sm:hidden">Commit</span>
                                             </>
                                         )}
                                     </span>

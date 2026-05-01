@@ -274,6 +274,10 @@ export const QuickInput: React.FC<QuickInputProps> = ({
         <div className="relative group">
             <input
                 {...rest}
+                onWheel={(e) => {
+                    if (rest.type === 'number') e.currentTarget.blur();
+                    if (rest.onWheel) rest.onWheel(e);
+                }}
                 className={clsx(
                     'w-full px-4 py-3.5 rounded-xl text-base font-black font-mono outline-none transition-all duration-200',
                     'bg-white/70 dark:bg-white/[0.07]',
@@ -439,6 +443,39 @@ export const GlassNozzleCard: React.FC<GlassNozzleCardProps> = ({
     onTestChange,
     index,
 }) => {
+    const [closingStr, setClosingStr] = React.useState(closing === 0 ? '' : closing.toString());
+    const [testStr, setTestStr] = React.useState(test === 0 ? '' : test.toString());
+
+    React.useEffect(() => {
+        if (closing !== parseFloat(closingStr || '0')) {
+            setClosingStr(closing === 0 ? '' : closing.toString());
+        }
+    }, [closing]);
+
+    React.useEffect(() => {
+        if (test !== parseFloat(testStr || '0')) {
+            setTestStr(test === 0 ? '' : test.toString());
+        }
+    }, [test]);
+
+    const handleClosingChange = (val: string) => {
+        if (val === '' || /^\d*\.?\d*$/.test(val)) {
+            setClosingStr(val);
+            const num = parseFloat(val);
+            if (!isNaN(num)) onClosingChange(num);
+            else if (val === '') onClosingChange(0);
+        }
+    };
+
+    const handleTestChange = (val: string) => {
+        if (val === '' || /^\d*\.?\d*$/.test(val)) {
+            setTestStr(val);
+            const num = parseFloat(val);
+            if (!isNaN(num)) onTestChange(num);
+            else if (val === '') onTestChange(0);
+        }
+    };
+
     const isValid = closing >= opening;
     const pct = Math.min(100, netLiters > 0 ? Math.min(100, (netLiters / 1000) * 100) : 0);
 
@@ -514,10 +551,10 @@ export const GlassNozzleCard: React.FC<GlassNozzleCardProps> = ({
                             Closing *
                         </p>
                         <input
-                            type="number"
-                            step="0.01"
-                            value={closing === 0 ? '' : closing}
-                            onChange={e => onClosingChange(parseFloat(e.target.value) || 0)}
+                            type="text"
+                            inputMode="decimal"
+                            value={closingStr}
+                            onChange={e => handleClosingChange(e.target.value)}
                             placeholder="0.00"
                             className={clsx(
                                 'w-full px-3 py-2.5 rounded-xl text-base font-black font-mono outline-none transition-all',
@@ -535,10 +572,10 @@ export const GlassNozzleCard: React.FC<GlassNozzleCardProps> = ({
                             Test (L)
                         </p>
                         <input
-                            type="number"
-                            step="0.01"
-                            value={test === 0 ? '' : test}
-                            onChange={e => onTestChange(parseFloat(e.target.value) || 0)}
+                            type="text"
+                            inputMode="decimal"
+                            value={testStr}
+                            onChange={e => handleTestChange(e.target.value)}
                             placeholder="0.00"
                             className="w-full px-3 py-2.5 rounded-xl text-base font-black font-mono outline-none transition-all bg-white/90 dark:bg-white/[0.07] backdrop-blur-sm text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-slate-700 border-2 border-gray-200/80 dark:border-white/[0.1] focus:border-amber-500 focus:ring-4 focus:ring-amber-500/15"
                         />

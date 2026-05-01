@@ -80,7 +80,7 @@ export const ExpensesPage: React.FC = () => {
     const shifts = isCNG ? cngStore.shifts : fuelStore.shifts;
     const [searchQuery, setSearchQuery] = useState('');
     const [filterCategory, setFilterCategory] = useState<ShiftExpenseCategory | 'ALL'>('ALL');
-    const { expenses, addExpense, fetchExpenses, isLoading, error: storeError } = useExpenseStore();
+    const { getFilteredExpenses, addExpense, fetchExpenses, isLoading, error: storeError } = useExpenseStore();
 
     // Fetch on mount
     React.useEffect(() => {
@@ -134,7 +134,7 @@ export const ExpensesPage: React.FC = () => {
     };
 
     // Use backend expenses
-    const allExpenses = expenses
+    const allExpenses = getFilteredExpenses()
         .map(e => ({
             id: e.id,
             category: e.category as ShiftExpenseCategory,

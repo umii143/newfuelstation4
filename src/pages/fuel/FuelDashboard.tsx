@@ -508,7 +508,7 @@ export function FuelDashboard({ onNavigate }: Props) {
     }, [fuel.shifts]);
 
     // ── Advanced Predictive Intelligence (Phase 6) ──────────────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const intelligence: any = useMemo(() => {
         const cl = [...fuel.shifts.filter(s => s.status === 'CLOSED')]
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());

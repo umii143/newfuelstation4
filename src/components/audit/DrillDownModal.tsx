@@ -117,7 +117,7 @@ export const DrillDownModal: React.FC<DrillDownModalProps> = ({
 
     // Filter and sort data
     const filteredData = useMemo(() => {
-        let filtered = data.filter(item => {
+        const filtered = data.filter(item => {
             const searchLower = searchQuery.toLowerCase();
             const itemStr = JSON.stringify(item).toLowerCase();
             return itemStr.includes(searchLower);

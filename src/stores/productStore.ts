@@ -5,6 +5,8 @@ import { persist } from 'zustand/middleware';
 import { getStationId } from '@/lib/authHelpers';
 import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
+import { auditLogger } from '@/lib/auditLogger';
+import { getBusinessMeta, stampBusinessScope } from '@/lib/businessScope';
 
 interface ProductState {
     products: Product[];
@@ -53,20 +55,23 @@ export const useProductStore = create<ProductState>()(
 
             addProduct: product => {
                 const { settings } = useSettingsStore.getState();
+                const sid = getStationId();
                 // Generate truly unique ID using timestamp + random string
                 const timestamp = Date.now();
                 const randomStr = Math.random().toString(36).substring(2, 9);
                 const productId = `PRD-${timestamp}-${randomStr}`;
 
-                const newProduct: Product = {
+                const newProduct = stampBusinessScope<Product>({
                     ...product,
+                    stationId: sid,
                     businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     productId,
-                };
+                });
                 set(state => ({ products: [...state.products, newProduct] }));
                 
-                const sid = getStationId();
                 if (sid) fsSet(sid, COLLECTIONS.PRODUCTS, productId, newProduct);
+                
+                auditLogger.log('LUBE', 'PRODUCT_ADD', `New product added: ${product.name} (${product.sku}) with opening stock ${product.currentStock}`, productId);
             },
 
             updateProduct: (productId, updates) => {
@@ -79,6 +84,7 @@ export const useProductStore = create<ProductState>()(
                     const updatedProduct = updatedProducts.find(p => p.productId === productId);
                     if (sid && updatedProduct) {
                         fsSet(sid, COLLECTIONS.PRODUCTS, productId, updatedProduct);
+                        auditLogger.log('LUBE', 'PRODUCT_UPDATE', `Product ${updatedProduct.name} details updated.`, productId);
                     }
                     
                     return { products: updatedProducts };
@@ -95,6 +101,7 @@ export const useProductStore = create<ProductState>()(
                     import('@/services/firestoreService').then(({ fsDelete }) => {
                         fsDelete(sid, COLLECTIONS.PRODUCTS, productId);
                     });
+                    auditLogger.log('LUBE', 'PRODUCT_DELETE', `Product #${productId} removed from inventory.`, productId);
                 }
             },
 
@@ -110,6 +117,7 @@ export const useProductStore = create<ProductState>()(
                     const updatedProduct = updatedProducts.find(p => p.productId === productId);
                     if (sid && updatedProduct) {
                         fsSet(sid, COLLECTIONS.PRODUCTS, productId, updatedProduct);
+                        auditLogger.log('LUBE', 'STOCK_ADJUSTMENT', `Stock adjusted for ${updatedProduct.name}: ${adjustment > 0 ? '+' : ''}${adjustment}. New Level: ${updatedProduct.currentStock}`, productId);
                     }
                     
                     return { products: updatedProducts };
@@ -236,7 +244,7 @@ export const usePOSStore = create<POSState>()(
                     const { enabled, mode } = taxConfig;
 
                     let taxAmount = 0;
-                    let unitPrice = product.salePrice;
+                    const unitPrice = product.salePrice;
 
                     if (enabled) {
                         if (mode === 'INCLUSIVE') {
@@ -333,7 +341,7 @@ export const usePOSStore = create<POSState>()(
                 if (cart.length === 0) return;
 
                 const { settings } = useSettingsStore.getState();
-                const holdOrder: HoldOrder = {
+                const holdOrder = stampBusinessScope<HoldOrder>({
                     holdId: `HOLD-${Date.now()}`,
                     customerName,
                     items: cart,
@@ -341,7 +349,7 @@ export const usePOSStore = create<POSState>()(
                     timestamp: new Date().toISOString(),
                     expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
                     businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
-                };
+                });
 
                 set(state => ({
                     holdOrders: [...state.holdOrders, holdOrder],
@@ -416,21 +424,26 @@ export const useSalesStore = create<SalesState>()(
 
             addSale: saleData => {
                 const { settings } = useSettingsStore.getState();
-                const saleId = `SAL-${Date.now()}`;
-                const receiptNumber = `R-${new Date().getFullYear()}-${String(get().sales.length + 1).padStart(6, '0')}`;
+                const sid = getStationId();
+                const meta = getBusinessMeta(settings.businessUnit);
+                const sequence = String(get().sales.length + 1).padStart(4, '0');
+                const saleId = `${meta.invoicePrefix}-${sequence}`;
+                const receiptNumber = `${meta.invoicePrefix}-${sequence}`;
 
-                const sale: Sale = {
+                const sale = stampBusinessScope<Sale>({
                     ...saleData,
+                    stationId: sid,
                     businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     saleId,
                     receiptNumber,
-                };
+                });
 
                 set(state => ({ sales: [sale, ...state.sales] }));
                 
-                const sid = getStationId();
                 if (sid) fsSet(sid, COLLECTIONS.SALES, saleId, sale);
                 
+                auditLogger.log('LUBE', 'POS_SALE', `POS Sale completed: ${receiptNumber}. Total: ₨${sale.totalAmount.toLocaleString()} (${sale.items.length} items)`, saleId);
+
                 return sale;
             },
 

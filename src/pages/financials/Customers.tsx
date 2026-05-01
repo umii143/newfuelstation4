@@ -6,10 +6,12 @@
 import { Badge, Button, Card, PageHeader } from '@/components/ui';
 import { useCustomerStore } from '@/stores/dataStores';
 import { useFuelStore } from '@/stores/fuelStore';
+import { useSettingsStore } from '@/stores/authStore';
 import { useCustomerLedgerStore } from '@/stores/ledgerStore';
 import type { Customer, CustomerLedgerEntry } from '@/types';
 import clsx from 'clsx';
 import {
+    AlertTriangle,
     ArrowDownRight,
     ArrowUpRight,
     Calendar,
@@ -17,18 +19,19 @@ import {
     CreditCard,
     DollarSign,
     FileText,
-    History,
     Phone,
     Plus,
     Search,
-    TrendingDown,
-    TrendingUp,
+    ShieldCheck,
     User,
     Users,
     Wallet,
     X,
 } from 'lucide-react';
 import React, { useState } from 'react';
+import { StaggerContainer, StaggerItem } from '@/components/ui/StaggerContainer';
+import { SkeletonKPI, SkeletonList } from '@/components/shared/skeletons/SkeletonList';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 // Helper functions
 const formatCurrency = (amount: number): string => {
@@ -54,15 +57,16 @@ const formatTime = (dateString: string): string => {
 type CustomerTab = 'overview' | 'ledger' | 'sales' | 'recoveries' | 'aging';
 
 export const CustomersPage: React.FC = () => {
-    const { customers } = useCustomerStore();
+    const { settings } = useSettingsStore();
+    const { getFilteredCustomers, isLoading: isCustomersLoading } = useCustomerStore();
     const {
-        entries: ledgerEntries,
         getCustomerLedger,
         getCustomerBalance,
         getCustomerAging,
-        
+        isLoading: isLedgerLoading
     } = useCustomerLedgerStore();
-    const {} = useFuelStore();
+    const isGlobalLoading = isCustomersLoading || isLedgerLoading;
+    useFuelStore();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -104,7 +108,8 @@ export const CustomersPage: React.FC = () => {
         addCustomer({
             ...newCustomer,
             stationId: 'STN-001',
-            status: 'ACTIVE', businessUnit: 'FUEL' as const,
+            status: 'ACTIVE',
+            businessUnit: settings?.businessUnit || 'FUEL',
         });
 
         setIsAddModalOpen(false);
@@ -119,21 +124,22 @@ export const CustomersPage: React.FC = () => {
     };
 
     // Filter customers
-    const filteredCustomers = customers.filter(
+    const filteredCustomers = getFilteredCustomers().filter(
         customer =>
             customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             customer.phone.includes(searchQuery)
     );
 
-    // Calculate total stats using ledger
-    const totalReceivables = customers.reduce(
+    // Calculate total stats using ledger (used inline in KPI cards)
+    const _totalReceivables = getFilteredCustomers().reduce(
         (sum, c) => sum + getCustomerBalance(c.customerId),
         0
     );
-    const overCreditLimit = customers.filter(
+    const _overCreditLimit = getFilteredCustomers().filter(
         c => getCustomerBalance(c.customerId) > c.creditLimit
     ).length;
-    const activeCustomers = customers.filter(c => c.status === 'ACTIVE').length;
+    const _activeCustomers = getFilteredCustomers().filter(c => c.status === 'ACTIVE').length;
+    void _totalReceivables; void _overCreditLimit; void _activeCustomers;
 
     // Open customer detail
     const openCustomerDetail = (customer: Customer) => {
@@ -681,84 +687,74 @@ export const CustomersPage: React.FC = () => {
             />
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Total Receivables */}
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/10 border border-blue-500/30 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
-                            <Wallet className="w-6 h-6 text-white" />
-                        </div>
+            {isGlobalLoading ? (
+                <SkeletonKPI count={4} />
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card className="p-4 bg-blue-50/50 border-blue-100 flex items-center justify-between">
                         <div>
-                            <p className="text-xs text-blue-400 uppercase tracking-wide font-medium">
+                            <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">
+                                Total Customers
+                            </p>
+                            <p className="text-2xl font-bold text-blue-900">
+                                {getFilteredCustomers().length}
+                            </p>
+                        </div>
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                            <Users className="w-5 h-5 text-blue-600" />
+                        </div>
+                    </Card>
+                    <Card className="p-4 bg-rose-50/50 border-rose-100 flex items-center justify-between">
+                        <div>
+                            <p className="text-xs font-medium text-rose-600 uppercase tracking-wider">
                                 Total Receivables
                             </p>
-                            <p className="text-2xl font-bold text-blue-500">
-                                {formatCurrency(totalReceivables)}
+                            <p className="text-2xl font-bold text-rose-900">
+                                ₨
+                                {getFilteredCustomers()
+                                    .reduce((acc, c) => acc + (getCustomerBalance(c.customerId) || 0), 0)
+                                    .toLocaleString()}
                             </p>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                        <TrendingUp className="w-4 h-4 text-emerald-500" />
-                        <span>From ledger calculations</span>
-                    </div>
-                </div>
-
-                {/* Active Customers */}
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-green-500/10 border border-emerald-500/30 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                            <Users className="w-6 h-6 text-white" />
+                        <div className="p-2 bg-rose-100 rounded-lg">
+                            <CreditCard className="w-5 h-5 text-rose-600" />
                         </div>
+                    </Card>
+                    <Card className="p-4 bg-amber-50/50 border-amber-100 flex items-center justify-between">
                         <div>
-                            <p className="text-xs text-emerald-400 uppercase tracking-wide font-medium">
-                                Active Customers
+                            <p className="text-xs font-medium text-amber-600 uppercase tracking-wider">
+                                Over Credit Limit
                             </p>
-                            <p className="text-2xl font-bold text-emerald-500">{activeCustomers}</p>
+                            <p className="text-2xl font-bold text-amber-900">
+                                {
+                                    getFilteredCustomers().filter(
+                                        c => (getCustomerBalance(c.customerId) || 0) > c.creditLimit
+                                    ).length
+                                }
+                            </p>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                        <span>of {customers.length} total</span>
-                    </div>
-                </div>
-
-                {/* Over Credit Limit */}
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-rose-500/20 to-pink-500/10 border border-rose-500/30 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center shadow-lg shadow-rose-500/30">
-                            <TrendingDown className="w-6 h-6 text-white" />
+                        <div className="p-2 bg-amber-100 rounded-lg">
+                            <AlertTriangle className="w-5 h-5 text-amber-600" />
                         </div>
+                    </Card>
+                    <Card className="p-4 bg-emerald-50/50 border-emerald-100 flex items-center justify-between">
                         <div>
-                            <p className="text-xs text-rose-400 uppercase tracking-wide font-medium">
-                                Over Limit
+                            <p className="text-xs font-medium text-emerald-600 uppercase tracking-wider">
+                                Active Limit
                             </p>
-                            <p className="text-2xl font-bold text-rose-500">{overCreditLimit}</p>
+                            <p className="text-2xl font-bold text-emerald-900">
+                                ₨
+                                {getFilteredCustomers()
+                                    .reduce((acc, c) => acc + c.creditLimit, 0)
+                                    .toLocaleString()}
+                            </p>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                        <span>Need attention</span>
-                    </div>
+                        <div className="p-2 bg-emerald-100 rounded-lg">
+                            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                        </div>
+                    </Card>
                 </div>
-
-                {/* Today's Transactions */}
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-500/30 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                            <History className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-amber-400 uppercase tracking-wide font-medium">
-                                Ledger Entries
-                            </p>
-                            <p className="text-2xl font-bold text-amber-500">
-                                {ledgerEntries.length}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                        <span>Total transactions</span>
-                    </div>
-                </div>
-            </div>
+            )}
 
             {/* Search */}
             <div className="relative max-w-md">
@@ -773,19 +769,24 @@ export const CustomersPage: React.FC = () => {
             </div>
 
             {/* Customer List */}
-            <div className="grid gap-3">
-                {filteredCustomers.length === 0 ? (
-                    <Card className="text-center py-12">
-                        <User className="w-12 h-12 mx-auto text-[var(--text-secondary)] mb-3" />
-                        <p className="text-[var(--text-secondary)]">No customers found</p>
-                    </Card>
+            <StaggerContainer className="grid gap-3">
+                {isGlobalLoading ? (
+                    <SkeletonList count={5} />
+                ) : filteredCustomers.length === 0 ? (
+                    <EmptyState
+                        icon={<User />}
+                        title="No Customers Found"
+                        description="Start by adding your first customer to track their ledger, credits, and recoveries."
+                        actionLabel="Add Customer"
+                        onAction={() => setIsAddModalOpen(true)}
+                    />
                 ) : (
                     filteredCustomers.map(customer => {
                         const balance = getCustomerBalance(customer.customerId);
                         const isOverLimit = balance > customer.creditLimit;
 
                         return (
-                            <div
+                            <StaggerItem
                                 key={customer.customerId}
                                 onClick={() => openCustomerDetail(customer)}
                                 className="p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border)] hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all cursor-pointer group"
@@ -800,63 +801,51 @@ export const CustomersPage: React.FC = () => {
                                                     : 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/30'
                                             )}
                                         >
-                                            {customer.name.charAt(0)}
+                                            {customer.name.substring(0, 2).toUpperCase()}
                                         </div>
                                         <div>
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="font-bold text-[var(--text-primary)]">
-                                                    {customer.name}
-                                                </h3>
-                                                <Badge
-                                                    color={
-                                                        customer.status === 'ACTIVE'
-                                                            ? 'emerald'
-                                                            : 'rose'
-                                                    }
-                                                >
-                                                    {customer.status}
-                                                </Badge>
-                                                {isOverLimit && (
-                                                    <Badge color="rose">Over Limit</Badge>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)] mt-1">
+                                            <h3 className="text-lg font-bold text-[var(--text-primary)] group-hover:text-blue-500 transition-colors">
+                                                {customer.name}
+                                            </h3>
+                                            <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)] mt-1">
                                                 <span className="flex items-center gap-1">
                                                     <Phone size={14} /> {customer.phone}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <CreditCard size={14} /> Limit:{' '}
-                                                    {formatCurrency(customer.creditLimit)}
                                                 </span>
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-6">
                                         <div className="text-right">
-                                            <p className="text-xs text-[var(--text-secondary)] uppercase">
+                                            <p className="text-sm text-[var(--text-secondary)] mb-1">
                                                 Balance
                                             </p>
                                             <p
                                                 className={clsx(
-                                                    'text-xl font-bold',
+                                                    'font-bold text-lg',
                                                     balance > 0
                                                         ? 'text-rose-500'
-                                                        : balance < 0
-                                                          ? 'text-emerald-500'
-                                                          : 'text-[var(--text-primary)]'
+                                                        : 'text-emerald-500'
                                                 )}
                                             >
                                                 {formatCurrency(balance)}
                                             </p>
                                         </div>
+                                        <div className="text-right hidden sm:block">
+                                            <p className="text-sm text-[var(--text-secondary)] mb-1">
+                                                Credit Limit
+                                            </p>
+                                            <p className="font-medium text-[var(--text-primary)]">
+                                                {formatCurrency(customer.creditLimit)}
+                                            </p>
+                                        </div>
                                         <ChevronRight className="w-5 h-5 text-[var(--text-secondary)] group-hover:text-blue-500 transition-colors" />
                                     </div>
                                 </div>
-                            </div>
+                            </StaggerItem>
                         );
                     })
                 )}
-            </div>
+            </StaggerContainer>
 
             {/* Customer Detail Modal */}
             {isDetailModalOpen && selectedCustomer && (

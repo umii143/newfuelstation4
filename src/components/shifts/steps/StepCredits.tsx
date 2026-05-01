@@ -177,17 +177,25 @@ export const StepCredits: React.FC<StepProps> = ({ onUpdate, data }) => {
     const [tab, setTab] = useState<'SALES' | 'RECOVERIES'>('SALES');
     const [selectedCustomer, setCustomer] = useState<Customer | null>(null);
     const [amount, setAmount] = useState('');
+    const [purpose, setPurpose] = useState('Fuel Purchase');
     const [showAddForm, setShowAddForm] = useState(false);
 
     const { customers } = useCustomerStore();
     const { getCustomerBalance } = useCustomerLedgerStore();
     const { settings } = useSettingsStore();
 
-    // Filter customers to current business unit
-    const filteredCustomers = useMemo(
-        () => customers.filter(c => c.businessUnit === settings.businessUnit || !c.businessUnit),
-        [customers, settings.businessUnit]
-    );
+    // Filter customers to current business unit, and only show those with balance > 0 for recoveries
+    const filteredCustomers = useMemo(() => {
+        let base = customers.filter(c => c.businessUnit === settings.businessUnit || !c.businessUnit);
+        if (tab === 'RECOVERIES') {
+            base = base.filter(c => {
+                const ledgerBal = getCustomerBalance(c.customerId);
+                const storeBal = c.currentBalance || 0;
+                return ledgerBal > 0 || storeBal > 0;
+            });
+        }
+        return base;
+    }, [customers, settings.businessUnit, tab, getCustomerBalance]);
 
     const balance = selectedCustomer ? getCustomerBalance(selectedCustomer.customerId) : 0;
 
@@ -203,6 +211,7 @@ export const StepCredits: React.FC<StepProps> = ({ onUpdate, data }) => {
                     amount: amt,
                     customerId: selectedCustomer.customerId,
                     customerName: selectedCustomer.name,
+                    description: type === 'CREDIT_SALE' ? purpose : undefined,
                     timestamp: new Date().toISOString(),
                 },
             ],
@@ -443,6 +452,29 @@ export const StepCredits: React.FC<StepProps> = ({ onUpdate, data }) => {
                             )}
                         </AnimatePresence>
 
+                        {/* Purpose selection (Only for Sales) */}
+                        <AnimatePresence>
+                            {tab === 'SALES' && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="overflow-hidden"
+                                >
+                                    <QuickSelect
+                                        label="Purpose / Category"
+                                        value={purpose}
+                                        onChange={e => setPurpose(e.target.value)}
+                                    >
+                                        <option value="Fuel Purchase">Fuel Purchase (Petrol/Diesel)</option>
+                                        <option value="Naqad Cash / Loan">Naqad Cash / Loan</option>
+                                        <option value="Lube / Oil Purchase">Lube / Oil Purchase</option>
+                                        <option value="Other">Other</option>
+                                    </QuickSelect>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
                         {/* Amount + Add button */}
                         <div className="flex gap-3">
                             <div className="flex-1">
@@ -520,6 +552,11 @@ export const StepCredits: React.FC<StepProps> = ({ onUpdate, data }) => {
                                                 hour: '2-digit',
                                                 minute: '2-digit',
                                             })}
+                                            {tx.description && (
+                                                <span className="text-gray-500 ml-1 italic truncate">
+                                                    — {tx.description}
+                                                </span>
+                                            )}
                                         </p>
                                     </div>
                                 </div>

@@ -13,6 +13,7 @@ import { getStationId } from '@/lib/authHelpers';
 import { useCustomerLedgerStore, useSupplierLedgerStore } from './ledgerStore';
 import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
+import { stampBusinessScope } from '@/lib/businessScope';
 
 // Customer Store
 interface CustomerState {
@@ -59,13 +60,17 @@ export const useCustomerStore = create<CustomerState>()(
             addCustomer: async customerData => {
                 set({ isLoading: true, error: null });
                 try {
+                    const { settings } = useSettingsStore.getState();
+                    const sid = getStationId();
                     const customerId = `CUST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                    const newCustomer: Customer = {
+                    const newCustomer = stampBusinessScope<Customer>({
                         ...customerData,
+                        stationId: sid,
                         customerId,
                         createdAt: new Date().toISOString(),
                         currentBalance: 0,
-                    } as Customer;
+                        businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
+                    });
 
                     const { addEntry: addLedgerEntry } = useCustomerLedgerStore.getState();
                     addLedgerEntry({
@@ -87,7 +92,6 @@ export const useCustomerStore = create<CustomerState>()(
                         isLoading: false,
                     }));
                     
-                    const sid = getStationId();
                     if (sid) fsSet(sid, COLLECTIONS.CUSTOMERS, newCustomer.customerId, newCustomer);
                 } catch (error: any) {
                     set({ error: error.message, isLoading: false });
@@ -200,7 +204,7 @@ interface SupplierState {
     updateSupplier: (supplierId: string, updates: Partial<Supplier>) => Promise<void>;
     deleteSupplier: (supplierId: string) => Promise<void>;
     recordPayment: (supplierId: string, amount: number) => Promise<void>;
-    createPurchaseOrder: (po: Omit<PurchaseOrder, 'poId' | 'createdAt'>) => Promise<void>;
+    createPurchaseOrder: (po: Omit<PurchaseOrder, 'poId' | 'createdAt' | 'businessUnit'>) => Promise<void>;
     getFilteredSuppliers: () => Supplier[];
 }
 
@@ -219,13 +223,17 @@ export const useSupplierStore = create<SupplierState>()(
             addSupplier: async supplierData => {
                 set({ isLoading: true, error: null });
                 try {
+                    const { settings } = useSettingsStore.getState();
+                    const sid = getStationId();
                     const supplierId = `SUP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                    const newSupplier: Supplier = {
+                    const newSupplier = stampBusinessScope<Supplier>({
                         ...supplierData,
+                        stationId: sid,
                         supplierId,
                         createdAt: new Date().toISOString(),
                         currentPayable: 0,
-                    } as Supplier;
+                        businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
+                    });
 
                     const { addEntry: addLedgerEntry } = useSupplierLedgerStore.getState();
                     addLedgerEntry({
@@ -247,7 +255,6 @@ export const useSupplierStore = create<SupplierState>()(
                         isLoading: false,
                     }));
                     
-                    const sid = getStationId();
                     if (sid) fsSet(sid, COLLECTIONS.SUPPLIERS, newSupplier.supplierId, newSupplier);
                 } catch (error: any) {
                     set({ error: error.message, isLoading: false });
@@ -280,6 +287,13 @@ export const useSupplierStore = create<SupplierState>()(
                     suppliers: state.suppliers.filter(s => s.supplierId !== supplierId),
                     isLoading: false,
                 }));
+                
+                const sid = getStationId();
+                if (sid) {
+                    import('@/services/firestoreService').then(({ fsDelete }) => {
+                        fsDelete(sid, COLLECTIONS.SUPPLIERS, supplierId);
+                    });
+                }
             },
 
             recordPayment: async (supplierId, amount) => {
@@ -306,17 +320,24 @@ export const useSupplierStore = create<SupplierState>()(
 
             createPurchaseOrder: async poData => {
                 set({ isLoading: true });
+                
+                const { settings } = useSettingsStore.getState();
+                const sid = getStationId();
+                const poId = `PO-${Date.now()}`;
+                const newPo = stampBusinessScope({
+                    ...poData,
+                    stationId: sid,
+                    poId,
+                    createdAt: new Date().toISOString(),
+                    businessUnit: settings.businessUnit,
+                } as any);
+
                 set(state => ({
-                    purchaseOrders: [
-                        {
-                            ...poData,
-                            poId: `PO-${Date.now()}`,
-                            createdAt: new Date().toISOString(),
-                        } as any,
-                        ...state.purchaseOrders,
-                    ],
+                    purchaseOrders: [newPo, ...state.purchaseOrders],
                     isLoading: false,
                 }));
+
+                if (sid) fsSet(sid, 'purchaseOrders', poId, newPo);
             },
 
             getFilteredSuppliers: () => {
@@ -350,6 +371,7 @@ interface StaffState {
     addStaff: (staff: Omit<User, 'userId' | 'createdAt'>) => Promise<void>;
     updateStaff: (userId: string, updates: Partial<User>) => Promise<void>;
     deleteStaff: (userId: string) => Promise<void>;
+    getFilteredAttendance: () => Attendance[];
     recordClockIn: (userId: string) => Promise<void>;
     recordClockOut: (userId: string) => Promise<void>;
 }
@@ -387,22 +409,28 @@ export const useStaffStore = create<StaffState>()(
                 );
             },
 
+            getFilteredAttendance: () => {
+                const { settings } = useSettingsStore.getState();
+                return get().attendance.filter(a => a.businessUnit === settings.businessUnit);
+            },
+
             addStaff: async staffData => {
                 set({ isLoading: true, error: null });
                 try {
                     const { settings } = useSettingsStore.getState();
+                    const sid = getStationId();
                     const userId = `USR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-                    const newUser: User = {
+                    const newUser = stampBusinessScope<User>({
                         ...staffData,
+                        stationId: sid,
                         userId,
                         createdAt: new Date().toISOString(),
                         businessUnit: settings.businessUnit,
                         status: 'ACTIVE',
-                    } as User;
+                    });
 
                     set(state => ({ users: [...state.users, newUser], isLoading: false }));
                     
-                    const sid = getStationId();
                     if (sid) fsSet(sid, COLLECTIONS.STAFF, newUser.userId, newUser);
                 } catch (error: any) {
                     set({ error: error.message, isLoading: false });
@@ -435,31 +463,38 @@ export const useStaffStore = create<StaffState>()(
                     users: state.users.filter(u => u.userId !== userId),
                     isLoading: false,
                 }));
+                
+                const sid = getStationId();
+                if (sid) {
+                    import('@/services/firestoreService').then(({ fsDelete }) => {
+                        fsDelete(sid, COLLECTIONS.STAFF, userId);
+                    });
+                }
             },
 
             recordClockIn: async userId => {
                 const { settings } = useSettingsStore.getState();
+                const sid = getStationId();
 
                 set({ isLoading: true });
-                const newAttendance: Attendance = {
+                const newAttendance = stampBusinessScope<Attendance>({
                     attendanceId: `ATT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     userId,
                     userName: get().users.find(u => u.userId === userId)?.name || 'Unknown',
-                    stationId: getStationId(),
+                    stationId: sid,
                     date: new Date().toISOString().split('T')[0],
                     clockIn: new Date().toISOString(),
                     status: 'PRESENT' as Attendance['status'],
                     totalHours: 0,
                     overtimeHours: 0,
                     businessUnit: settings.businessUnit,
-                } as Attendance;
+                });
 
                 set(state => ({
                     attendance: [newAttendance, ...state.attendance],
                     isLoading: false,
                 }));
                 
-                const sid = getStationId();
                 if (sid) fsSet(sid, COLLECTIONS.ATTENDANCE, newAttendance.attendanceId, newAttendance);
             },
 
@@ -517,6 +552,7 @@ interface Expense {
     expenseDate: string;
     approvedById: string | null;
     createdAt: string;
+    businessUnit: 'FUEL' | 'LUBE' | 'CNG';
 }
 
 interface ExpenseState {
@@ -525,13 +561,14 @@ interface ExpenseState {
     error: string | null;
 
     fetchExpenses: (filters?: any) => Promise<void>;
-    addExpense: (data: Omit<Expense, 'id' | 'stationId' | 'createdAt'>) => Promise<void>;
+    addExpense: (data: Omit<Expense, 'id' | 'stationId' | 'createdAt' | 'businessUnit'>) => Promise<void>;
     deleteExpense: (expenseId: string) => Promise<void>;
+    getFilteredExpenses: () => Expense[];
 }
 
 export const useExpenseStore = create<ExpenseState>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             expenses: [],
             isLoading: false,
             error: null,
@@ -543,12 +580,14 @@ export const useExpenseStore = create<ExpenseState>()(
             addExpense: async expenseData => {
                 set({ isLoading: true });
                 try {
-                    const newExpense: Expense = {
+                    const { settings } = useSettingsStore.getState();
+                    const newExpense = stampBusinessScope<Expense>({
                         ...expenseData,
                         id: `EXP-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                        stationId: 'STN-001',
+                        stationId: getStationId(),
                         createdAt: new Date().toISOString(),
-                    } as Expense;
+                        businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
+                    });
 
                     set(state => ({ expenses: [newExpense, ...state.expenses], isLoading: false }));
                     
@@ -573,6 +612,11 @@ export const useExpenseStore = create<ExpenseState>()(
                         fsDelete(sid, COLLECTIONS.EXPENSES, expenseId);
                     });
                 }
+            },
+
+            getFilteredExpenses: () => {
+                const { settings } = useSettingsStore.getState();
+                return get().expenses.filter(e => e.businessUnit === settings.businessUnit);
             },
         }),
         {

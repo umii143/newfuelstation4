@@ -99,23 +99,43 @@ const SHIFT_CFG: Record<
 /* ── KPI definitions ──────────────────────────────────────────────────── */
 const KPI_DEFS = [
     {
-        key: 'REVENUE',
-        label: 'Revenue',
+        key: 'PETROL_REVENUE',
+        label: 'Petrol Rev.',
         sub: 'Nozzle Sales',
         Icon: DollarSign,
-        from: '#10b981',
-        to: '#059669',
-        glow: 'rgba(16,185,129,0.3)',
+        from: '#f59e0b',
+        to: '#d97706',
+        glow: 'rgba(245,158,11,0.3)',
         type: 'NOZZLE_SALES' as TransactionType,
     },
     {
-        key: 'VOLUME',
-        label: 'Volume Sold',
-        sub: 'Total Liters',
-        Icon: Fuel,
+        key: 'DIESEL_REVENUE',
+        label: 'Diesel Rev.',
+        sub: 'Nozzle Sales',
+        Icon: DollarSign,
         from: '#06b6d4',
         to: '#0891b2',
         glow: 'rgba(6,182,212,0.3)',
+        type: 'NOZZLE_SALES' as TransactionType,
+    },
+    {
+        key: 'PETROL_VOLUME',
+        label: 'Petrol Vol.',
+        sub: 'Total Liters',
+        Icon: Fuel,
+        from: '#fbbf24',
+        to: '#d97706',
+        glow: 'rgba(251,191,36,0.3)',
+        type: 'NOZZLE_SALES' as TransactionType,
+    },
+    {
+        key: 'DIESEL_VOLUME',
+        label: 'Diesel Vol.',
+        sub: 'Total Liters',
+        Icon: Fuel,
+        from: '#22d3ee',
+        to: '#0891b2',
+        glow: 'rgba(34,211,238,0.3)',
         type: 'NOZZLE_SALES' as TransactionType,
     },
     {
@@ -261,11 +281,23 @@ export const ShiftActivityPage: React.FC = () => {
             }))
         );
 
-        const getTxOfType = (s: (typeof shifts)[0], type: string) =>
-            (s.transactions || []).filter((t: any) => t.type === type);
+        // Helper: get entries from a shift without duplicates.
+        // Use transactions array as primary source; only fall back to
+        // individual entry arrays when transactions is empty/missing.
+        const getShiftEntries = (s: (typeof shifts)[0], txType: string, entriesKey: string): any[] => {
+            const txEntries = (s.transactions || []).filter((t: any) => t.type === txType);
+            const typedEntries: any[] = (s as any)[entriesKey] || [];
+            // If both exist, deduplicate by ID — prefer transactions array
+            if (txEntries.length > 0 && typedEntries.length > 0) {
+                const txIds = new Set(txEntries.map((t: any) => t.id));
+                const unique = [...txEntries, ...typedEntries.filter((e: any) => !txIds.has(e.id))];
+                return unique;
+            }
+            return txEntries.length > 0 ? txEntries : typedEntries;
+        };
 
         const recoveries = flatMap(s =>
-            [...(s.recoveryEntries || []), ...getTxOfType(s, 'RECOVERY')].map((r: any) => ({
+            getShiftEntries(s, 'RECOVERY', 'recoveryEntries').map((r: any) => ({
                 ...r,
                 shiftId: s.shiftId,
                 shiftDate: s.date,
@@ -276,7 +308,7 @@ export const ShiftActivityPage: React.FC = () => {
         );
 
         const credits = flatMap(s =>
-            [...(s.creditEntries || []), ...getTxOfType(s, 'CREDIT_SALE')].map((c: any) => ({
+            getShiftEntries(s, 'CREDIT_SALE', 'creditEntries').map((c: any) => ({
                 ...c,
                 shiftId: s.shiftId,
                 shiftDate: s.date,
@@ -287,7 +319,7 @@ export const ShiftActivityPage: React.FC = () => {
         );
 
         const expenses = flatMap(s =>
-            [...(s.expenseEntries || []), ...getTxOfType(s, 'EXPENSE')].map((e: any) => ({
+            getShiftEntries(s, 'EXPENSE', 'expenseEntries').map((e: any) => ({
                 ...e,
                 shiftId: s.shiftId,
                 shiftDate: s.date,
@@ -299,7 +331,7 @@ export const ShiftActivityPage: React.FC = () => {
         );
 
         const bankDeposits = flatMap(s =>
-            [...(s.bankDepositEntries || []), ...getTxOfType(s, 'BANK_DEPOSIT')].map((bd: any) => ({
+            getShiftEntries(s, 'BANK_DEPOSIT', 'bankDepositEntries').map((bd: any) => ({
                 ...bd,
                 shiftId: s.shiftId,
                 shiftDate: s.date,
@@ -310,7 +342,7 @@ export const ShiftActivityPage: React.FC = () => {
         );
 
         const supplierPayments = flatMap(s =>
-            [...(s.supplierPaymentEntries || []), ...getTxOfType(s, 'SUPPLIER_PAYMENT')].map(
+            getShiftEntries(s, 'SUPPLIER_PAYMENT', 'supplierPaymentEntries').map(
                 (sp: any) => ({
                     ...sp,
                     shiftId: s.shiftId,
@@ -323,7 +355,7 @@ export const ShiftActivityPage: React.FC = () => {
         );
 
         const digitalPayments = flatMap(s =>
-            getTxOfType(s, 'DIGITAL_PAYMENT').map((dp: any) => ({
+            getShiftEntries(s, 'DIGITAL_PAYMENT', 'digitalCashEntries').map((dp: any) => ({
                 ...dp,
                 shiftId: s.shiftId,
                 shiftDate: s.date,
@@ -332,8 +364,13 @@ export const ShiftActivityPage: React.FC = () => {
             }))
         );
 
-        const totalRevenue = dateFiltered.reduce((s, x) => s + (x.totalRevenue || 0), 0);
-        const totalLiters = dateFiltered.reduce((s, x) => s + (x.totalLitersSold || 0), 0);
+        const petrolLiters = nozzleSales.filter(x => x.fuelType.includes('PETROL') || x.fuelType === 'SUPER').reduce((s, x) => s + x.liters, 0);
+        const petrolRevenue = nozzleSales.filter(x => x.fuelType.includes('PETROL') || x.fuelType === 'SUPER').reduce((s, x) => s + x.amount, 0);
+        const dieselLiters = nozzleSales.filter(x => x.fuelType.includes('DIESEL') || x.fuelType === 'HSD').reduce((s, x) => s + x.liters, 0);
+        const dieselRevenue = nozzleSales.filter(x => x.fuelType.includes('DIESEL') || x.fuelType === 'HSD').reduce((s, x) => s + x.amount, 0);
+
+        const totalRevenue = petrolRevenue + dieselRevenue;
+        const totalLiters = petrolLiters + dieselLiters;
         const totalRecovery = recoveries.reduce((s, x) => s + x.amount, 0);
         const totalCredit = credits.reduce((s, x) => s + x.amount, 0);
         const totalExpense = expenses.reduce((s, x) => s + x.amount, 0);
@@ -342,6 +379,10 @@ export const ShiftActivityPage: React.FC = () => {
         const totalDigital = digitalPayments.reduce((s, x) => s + x.amount, 0);
 
         return {
+            petrolLiters,
+            petrolRevenue,
+            dieselLiters,
+            dieselRevenue,
             totalRevenue,
             totalLiters,
             totalRecovery,
@@ -362,8 +403,10 @@ export const ShiftActivityPage: React.FC = () => {
     }, [dateFiltered, nozzles]);
 
     const kpiData: Record<string, { amount: number; liters?: number; entries: any[] }> = {
-        REVENUE: { amount: agg.totalRevenue, entries: agg.nozzleSales },
-        VOLUME: { amount: agg.totalLiters, entries: agg.nozzleSales },
+        PETROL_REVENUE: { amount: agg.petrolRevenue, entries: agg.nozzleSales.filter(x => x.fuelType.includes('PETROL') || x.fuelType === 'SUPER') },
+        DIESEL_REVENUE: { amount: agg.dieselRevenue, entries: agg.nozzleSales.filter(x => x.fuelType.includes('DIESEL') || x.fuelType === 'HSD') },
+        PETROL_VOLUME: { amount: agg.petrolLiters, entries: agg.nozzleSales.filter(x => x.fuelType.includes('PETROL') || x.fuelType === 'SUPER') },
+        DIESEL_VOLUME: { amount: agg.dieselLiters, entries: agg.nozzleSales.filter(x => x.fuelType.includes('DIESEL') || x.fuelType === 'HSD') },
         RECOVERIES: { amount: agg.totalRecovery, entries: agg.recoveries },
         CREDIT: { amount: agg.totalCredit, entries: agg.credits },
         EXPENSE: { amount: agg.totalExpense, entries: agg.expenses },
@@ -458,11 +501,11 @@ export const ShiftActivityPage: React.FC = () => {
             </motion.div>
 
             {/* ═══ KPI GRID ═══ */}
-            <motion.div variants={ITEM} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <motion.div variants={ITEM} className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 {KPI_DEFS.map((k, i) => {
                     const d = kpiData[k.key];
-                    const isLiters = k.key === 'VOLUME';
-                    const val = isLiters ? agg.totalLiters : d?.amount || 0;
+                    const isLiters = k.key.includes('VOLUME');
+                    const val = d?.amount || 0;
                     const display = isLiters ? `${val.toLocaleString()} L` : fmtShort(val);
                     const entries = d?.entries.length || 0;
 
@@ -694,21 +737,19 @@ export const ShiftActivityPage: React.FC = () => {
                         const isExp = expanded === shift.shiftId;
                         const variance = shift.variance || 0;
 
-                        // Get all transactions for this shift
-                        const shiftExpenses = [
-                            ...(shift.expenseEntries || []),
-                            ...(shift.transactions || []).filter((t: any) => t.type === 'EXPENSE'),
-                        ];
-                        const shiftCredits = [
-                            ...(shift.creditEntries || []),
-                            ...(shift.transactions || []).filter(
-                                (t: any) => t.type === 'CREDIT_SALE'
-                            ),
-                        ];
-                        const shiftRecoveries = [
-                            ...(shift.recoveryEntries || []),
-                            ...(shift.transactions || []).filter((t: any) => t.type === 'RECOVERY'),
-                        ];
+                        // Get all transactions for this shift (deduplicated)
+                        const dedup = (txType: string, entriesKey: string): any[] => {
+                            const txEntries = (shift.transactions || []).filter((t: any) => t.type === txType);
+                            const typedEntries: any[] = (shift as any)[entriesKey] || [];
+                            if (txEntries.length > 0 && typedEntries.length > 0) {
+                                const txIds = new Set(txEntries.map((t: any) => t.id));
+                                return [...txEntries, ...typedEntries.filter((e: any) => !txIds.has(e.id))];
+                            }
+                            return txEntries.length > 0 ? txEntries : typedEntries;
+                        };
+                        const shiftExpenses = dedup('EXPENSE', 'expenseEntries');
+                        const shiftCredits = dedup('CREDIT_SALE', 'creditEntries');
+                        const shiftRecoveries = dedup('RECOVERY', 'recoveryEntries');
 
                         return (
                             <motion.div
@@ -844,7 +885,7 @@ export const ShiftActivityPage: React.FC = () => {
                                                 val: fmtPk(
                                                     shift.credits ||
                                                         shiftCredits.reduce(
-                                                            (s, t) => s + (t.amount || 0),
+                                                            (s: number, t: any) => s + (t.amount || 0),
                                                             0
                                                         )
                                                 ),
@@ -856,7 +897,7 @@ export const ShiftActivityPage: React.FC = () => {
                                                 val: fmtPk(
                                                     shift.recoveries ||
                                                         shiftRecoveries.reduce(
-                                                            (s, t) => s + (t.amount || 0),
+                                                            (s: number, t: any) => s + (t.amount || 0),
                                                             0
                                                         )
                                                 ),
@@ -868,7 +909,7 @@ export const ShiftActivityPage: React.FC = () => {
                                                 val: fmtPk(
                                                     shift.expenses ||
                                                         shiftExpenses.reduce(
-                                                            (s, t) => s + (t.amount || 0),
+                                                            (s: number, t: any) => s + (t.amount || 0),
                                                             0
                                                         )
                                                 ),

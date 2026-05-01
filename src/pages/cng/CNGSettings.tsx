@@ -304,7 +304,7 @@ export const CNGSettingsPage: React.FC = () => {
                 </Card>
 
                 {/* 3. Digital Treasury (Payment Accounts) */}
-                <Card className="p-8 rounded-[2.5rem] bg-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden">
+                <Card className="p-8 rounded-[2.5rem] bg-white dark:bg-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full -mr-32 -mt-32 blur-3xl opacity-50" />
 
                     <div className="flex items-center gap-5 mb-8 relative">

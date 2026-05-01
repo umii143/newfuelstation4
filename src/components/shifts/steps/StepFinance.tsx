@@ -345,10 +345,14 @@ export const StepFinance: React.FC<StepProps> = ({ onUpdate, data }) => {
     const addExpenseTx = async () => {
         const amt = parseFloat(amount);
         if (isNaN(amt) || amt <= 0) return;
-        const desc =
-            needsStaff && staffMember
-                ? `Salary — ${staffMember.name}`
-                : expNote || currentCat.label;
+        const personName = 
+            selectedStaffId === 'OWNER' 
+                ? 'Owner' 
+                : selectedStaffId === 'MANAGER' 
+                ? 'Manager' 
+                : staffMember?.name;
+
+        const desc = expNote || (personName ? `${currentCat.label} — ${personName}` : currentCat.label);
 
         /* 1. Write to shift */
         onUpdate({
@@ -360,8 +364,8 @@ export const StepFinance: React.FC<StepProps> = ({ onUpdate, data }) => {
                     amount: amt,
                     expenseCategory: expCat,
                     description: desc,
-                    staffId: needsStaff ? selectedStaffId : undefined,
-                    staffName: needsStaff ? staffMember?.name : undefined,
+                    staffId: selectedStaffId || undefined,
+                    staffName: personName || undefined,
                     timestamp: new Date().toISOString(),
                 },
             ],
@@ -376,26 +380,26 @@ export const StepFinance: React.FC<StepProps> = ({ onUpdate, data }) => {
                 description: desc,
                 expenseDate: new Date().toISOString(),
                 paymentMethod: 'CASH',
-                paidTo: needsStaff ? staffMember?.name || 'Staff' : 'MISC',
+                paidTo: personName || 'MISC',
                 approvedById: null,
             });
         } catch {
             /* best-effort */
         }
 
-        /* 3. If SALARY → write to Staff Ledger Tab */
-        if (needsStaff && staffMember) {
+        /* 3. If a staff member is tagged → write to Staff Ledger Tab */
+        if (staffMember) {
             staffLedger.addEntry({
                 userId: staffMember.userId,
                 userName: staffMember.name,
                 date: new Date().toISOString().split('T')[0],
-                type: 'SALARY',
+                type: expCat === 'SALARY' ? 'SALARY' : 'EXPENSE',
                 amount: amt,
                 debit: amt, // paying staff = debit (money out)
                 credit: 0,
-                note: `Salary paid via Shift Wizard — ${new Date().toLocaleDateString('en-PK')}`,
+                note: `Expense: ${currentCat.label} via Shift Wizard — ${desc}`,
                 createdBy: settings.businessName || 'Manager',
-                reference: `SHIFT-SALARY`,
+                reference: `SHIFT-EXP-${expCat}`,
             });
             flashSync(`✓ ₨${fmt(amt)} posted to ${staffMember.name}'s ledger`);
         } else {
@@ -748,55 +752,47 @@ export const StepFinance: React.FC<StepProps> = ({ onUpdate, data }) => {
                                     </div>
                                 </div>
 
-                                {/* Salary → Staff picker */}
-                                <AnimatePresence>
-                                    {needsStaff && (
-                                        <motion.div
-                                            key="staff-picker"
-                                            initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                                            animate={{
-                                                opacity: 1,
-                                                height: 'auto',
-                                                overflow: 'visible',
-                                            }}
-                                            exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                                            transition={{ duration: 0.25 }}
+                                {/* Staff picker */}
+                                <div
+                                    className="rounded-2xl border-2 p-4 space-y-3 mt-4"
+                                    style={{
+                                        borderColor: '#8b5cf640',
+                                        background:
+                                            'linear-gradient(135deg,#8b5cf608,transparent)',
+                                    }}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-xl bg-violet-100 dark:bg-violet-500/20 flex items-center justify-center">
+                                            <Users
+                                                size={15}
+                                                className="text-violet-600 dark:text-violet-400"
+                                            />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-black text-gray-900 dark:text-white">
+                                                {needsStaff ? 'Select Staff Receiving Salary *' : 'Select Staff Member (Optional)'}
+                                            </p>
+                                            <p className="text-xs text-violet-600 dark:text-violet-400">
+                                                {needsStaff ? 'Payment will post to their ledger instantly' : 'Record who made or received this expense'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <QuickSelect
+                                        value={selectedStaffId}
+                                        onChange={e => setStaffId(e.target.value)}
+                                    >
+                                        <option
+                                            value=""
+                                            className="bg-white dark:bg-gray-900 text-gray-400"
                                         >
-                                            <div
-                                                className="rounded-2xl border-2 p-4 space-y-3"
-                                                style={{
-                                                    borderColor: '#8b5cf640',
-                                                    background:
-                                                        'linear-gradient(135deg,#8b5cf608,transparent)',
-                                                }}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-8 h-8 rounded-xl bg-violet-100 dark:bg-violet-500/20 flex items-center justify-center">
-                                                        <Users
-                                                            size={15}
-                                                            className="text-violet-600 dark:text-violet-400"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-black text-gray-900 dark:text-white">
-                                                            Select Staff Receiving Salary
-                                                        </p>
-                                                        <p className="text-xs text-violet-600 dark:text-violet-400">
-                                                            Payment will post to their ledger
-                                                            instantly
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <QuickSelect
-                                                    value={selectedStaffId}
-                                                    onChange={e => setStaffId(e.target.value)}
-                                                >
-                                                    <option
-                                                        value=""
-                                                        className="bg-white dark:bg-gray-900 text-gray-400"
-                                                    >
-                                                        — Choose staff member —
-                                                    </option>
+                                            — Select Spent By / Recipient —
+                                        </option>
+                                        <option value="OWNER" className="bg-white dark:bg-gray-900 font-bold text-gray-900 dark:text-white">
+                                            💼 Station Owner
+                                        </option>
+                                        <option value="MANAGER" className="bg-white dark:bg-gray-900 font-bold text-gray-900 dark:text-white">
+                                            👨‍💼 Station Manager
+                                        </option>
                                                     {activeStaff.length === 0 && (
                                                         <option disabled>
                                                             No active staff registered yet
@@ -813,7 +809,7 @@ export const StepFinance: React.FC<StepProps> = ({ onUpdate, data }) => {
                                                         </option>
                                                     ))}
                                                 </QuickSelect>
-                                                {staffMember && (
+                                                {needsStaff && staffMember && (
                                                     <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20">
                                                         <Wallet
                                                             size={14}
@@ -839,9 +835,6 @@ export const StepFinance: React.FC<StepProps> = ({ onUpdate, data }) => {
                                                     </div>
                                                 )}
                                             </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
 
                                 <QuickInput
                                     label="Note (optional)"

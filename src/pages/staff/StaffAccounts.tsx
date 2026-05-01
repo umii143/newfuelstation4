@@ -8,7 +8,8 @@ import { ArrowLeft, ChevronRight, CreditCard, Filter, History, Search, Wallet } 
 import React, { useMemo, useState } from 'react';
 
 const StaffAccounts: React.FC = () => {
-    const { users } = useStaffStore();
+    const { getActiveStaff } = useStaffStore();
+    const users = getActiveStaff();
     const { entries, addEntry, getStaffBalance } = useStaffLedgerStore();
     const { user: currentUser } = useAuthStore();
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);

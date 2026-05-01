@@ -1,63 +1,52 @@
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { clearBusinessScopedStores } from '@/lib/businessStoreSync';
+import { getBusinessMeta } from '@/lib/businessScope';
+import { cn } from '@/lib/utils';
 import { useAuthStore, useSettingsStore } from '@/stores/authStore';
 import { useFuelStore } from '@/stores/fuelStore';
 import { AnimatePresence, motion } from 'framer-motion';
-import {
-    Bell,
-    ChevronDown,
-    Clock,
-    Fingerprint,
-    Globe,
-    LogOut,
-    Menu,
-    Search,
-    Settings,
-    Sparkles,
-    User,
-    X,
-} from 'lucide-react';
+import { Bell, Fingerprint, Globe, Search, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { LiveTicker } from '@/components/ui/LiveTicker';
 
-interface GlobalHeaderProps {
-    onMenuToggle?: () => void;
-    isSidebarOpen?: boolean;
-}
-
-export function GlobalHeader({ onMenuToggle, isSidebarOpen }: GlobalHeaderProps) {
-    const [searchQuery, setSearchQuery] = useState('');
+export function GlobalHeader() {
     const [showNotifications, setShowNotifications] = useState(false);
-    const [showUserMenu, setShowUserMenu] = useState(false);
-    const [showBusinessUnitMenu, setShowBusinessUnitMenu] = useState(false);
-    const [greeting, setGreeting] = useState('');
     const [currentTime, setCurrentTime] = useState('');
-    const { user: currentUser, logout, authMethod } = useAuthStore();
-    const { settings } = useSettingsStore();
+    const [isScrolled, setIsScrolled] = useState(false);
+    const { user: currentUser, authMethod } = useAuthStore();
+    const { settings, switchBusinessUnit } = useSettingsStore();
+    const fuelState = useFuelStore(state => state);
+    const activeBusiness = getBusinessMeta(settings.businessUnit);
+    const isBloomberg = settings.theme === 'bloomberg';
 
     useEffect(() => {
-        const updateGreeting = () => {
-            const hour = new Date().getHours();
-            const time = new Date().toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-            });
-            setCurrentTime(time);
+        const main = document.querySelector('main');
+        if (!main) return;
 
-            if (hour < 12) setGreeting('Good Morning');
-            else if (hour < 17) setGreeting('Good Afternoon');
-            else setGreeting('Good Evening');
+        const handler = () => setIsScrolled(main.scrollTop > 8);
+        main.addEventListener('scroll', handler, { passive: true });
+        return () => main.removeEventListener('scroll', handler);
+    }, []);
+
+    useEffect(() => {
+        const updateTime = () => {
+            setCurrentTime(
+                new Date().toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                })
+            );
         };
 
-        updateGreeting();
-        const interval = setInterval(updateGreeting, 60000);
+        updateTime();
+        const interval = setInterval(updateTime, 60000);
         return () => clearInterval(interval);
     }, []);
 
-    const fuelState = useFuelStore(state => state);
-
     const notifications = useMemo(() => {
-        const notifs = [];
+        const notifs: any[] = [];
         let idCounter = 1;
 
-        // Alerts from fuel tanks
         fuelState.tanks.forEach((tank: any) => {
             if (tank.currentLevel && tank.capacity) {
                 const pct = (tank.currentLevel / tank.capacity) * 100;
@@ -74,412 +63,286 @@ export function GlobalHeader({ onMenuToggle, isSidebarOpen }: GlobalHeaderProps)
             }
         });
 
-        // Active shifts
-        const openShifts = fuelState.shifts.filter((s: any) => s.status === 'OPEN');
-        openShifts.forEach((shift: any) => {
-            notifs.push({
-                id: idCounter++,
-                title: 'Active Shift',
-                message: `Shift ${shift.id} is currently open`,
-                time: 'In progress',
-                unread: false,
-                type: 'shift',
+        fuelState.shifts
+            .filter((shift: any) => shift.status === 'OPEN')
+            .forEach((shift: any) => {
+                notifs.push({
+                    id: idCounter++,
+                    title: 'Active Shift',
+                    message: `Shift ${shift.id} is currently open`,
+                    time: 'In progress',
+                    unread: false,
+                    type: 'shift',
+                });
             });
-        });
-
-        // Default OK state
-        if (notifs.length === 0) {
-            notifs.push({
-                id: idCounter++,
-                title: 'System Optimal',
-                message: 'All systems running normally',
-                time: 'Just now',
-                unread: false,
-                type: 'system',
-            });
-        }
 
         return notifs;
     }, [fuelState]);
 
-    const unreadCount = notifications.filter(n => n.unread).length;
+    const unreadCount = notifications.filter(notification => notification.unread).length;
+    const hasActiveShift = notifications.some(notification => notification.type === 'shift');
 
-    const businessUnitConfig = {
-        FUEL: {
-            name: 'Fuel Station',
-            color: 'from-blue-600 to-cyan-600',
-            icon: '⛽',
-            accent: 'bg-blue-500',
-        },
-        CNG: {
-            name: 'CNG Services',
-            color: 'from-emerald-600 to-teal-600',
-            icon: '🔋',
-            accent: 'bg-emerald-500',
-        },
-        LUBE: {
-            name: 'Premium Lube',
-            color: 'from-purple-600 to-indigo-600',
-            icon: '🛢️',
-            accent: 'bg-indigo-500',
-        },
+    const businessUnits = [
+        { id: 'FUEL', label: 'Fuel Station' },
+        { id: 'CNG', label: 'CNG' },
+        { id: 'LUBE', label: 'Lube' },
+    ] as const;
+
+    const handleSwitchBusiness = (businessUnit: 'FUEL' | 'CNG' | 'LUBE') => {
+        if (settings.businessUnit === businessUnit) {
+            return;
+        }
+
+        clearBusinessScopedStores();
+        switchBusinessUnit(businessUnit);
+        window.history.pushState({}, '', '/');
+        window.dispatchEvent(new Event('popstate'));
     };
 
-    const currentBU =
-        businessUnitConfig[settings.businessUnit as keyof typeof businessUnitConfig] ||
-        businessUnitConfig.FUEL;
-
     return (
-        <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-2xl border-b border-gray-200/40 shadow-[0_1px_0_rgba(0,0,0,0.04),0_4px_20px_rgba(0,0,0,0.025)]">
-            <div className="px-5 lg:px-8 h-16 flex items-center justify-between gap-4">
-                {/* LEFT: Mobile Menu + Greeting + BU Switcher */}
-                <div className="flex items-center gap-3 sm:gap-6 flex-1 min-w-0">
-                    {/* Mobile Menu Button - Minimal */}
-                    <button
-                        onClick={onMenuToggle}
-                        className="lg:hidden p-2 -ml-2 rounded-full hover:bg-gray-100/80 text-gray-700 transition-colors"
-                    >
-                        {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-                    </button>
+        <div className="sticky top-0 z-50 flex w-full flex-col">
+            {isBloomberg && <LiveTicker />}
 
-                    {/* Quick Greeting & Time Clock - Hidden on Mobile */}
-                    <div className="hidden md:flex flex-col justify-center">
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900 tracking-tight">
-                                {greeting}, {(currentUser as any)?.name || 'User'}
+            <header
+                className={cn(
+                    'h-[var(--header-height)] w-full border-b transition-all duration-300',
+                    isScrolled
+                        ? 'bg-white/90 backdrop-blur-xl shadow-sm border-slate-200/60 dark:bg-slate-950/90 dark:border-slate-800/60 dark:shadow-md bloomberg:bg-[#0A0A0A] bloomberg:border-[#2A2A2A]'
+                        : 'bg-white/50 backdrop-blur-md border-transparent dark:bg-slate-950/50 bloomberg:bg-[#000000] bloomberg:border-transparent'
+                )}
+            >
+                <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
+                    <div className="hidden items-center gap-3 lg:flex">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
+                                Active Business
                             </span>
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-100/80 border border-gray-200/50">
-                                {authMethod === 'GOOGLE' ? (
-                                    <Globe className="w-3 h-3 text-blue-500" />
-                                ) : authMethod === 'PIN' ? (
-                                    <Fingerprint className="w-3 h-3 text-purple-500" />
-                                ) : (
-                                    <Sparkles className="w-3 h-3 text-emerald-500" />
+                            <span className="text-sm font-bold text-slate-900 dark:text-white bloomberg:text-[#F5A623]">
+                                {activeBusiness.label}
+                            </span>
+                        </div>
+
+                        <div className="glass-panel flex items-center rounded-xl p-1">
+                            {businessUnits.map(business => {
+                                const isActive = settings.businessUnit === business.id;
+
+                                return (
+                                    <button
+                                        key={business.id}
+                                        onClick={() => handleSwitchBusiness(business.id)}
+                                        className={cn(
+                                            'relative flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors outline-none',
+                                            isActive
+                                                ? 'text-slate-900 dark:text-white bloomberg:text-black'
+                                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bloomberg:text-[#888]'
+                                        )}
+                                    >
+                                        {isActive && (
+                                            <motion.div
+                                                layoutId="headerBuTab"
+                                                className="absolute inset-0 rounded-lg bg-white shadow-sm dark:bg-slate-800 bloomberg:bg-[#F5A623]"
+                                                transition={{
+                                                    type: 'spring',
+                                                    stiffness: 400,
+                                                    damping: 30,
+                                                }}
+                                            />
+                                        )}
+                                        <span className="relative z-10 tracking-tight">
+                                            {business.label}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 lg:hidden">
+                        <span className="text-base font-bold tracking-tight text-slate-800 dark:text-white bloomberg:text-[#F5A623]">
+                            {activeBusiness.label}
+                        </span>
+                        <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
+                        <span className="text-sm font-medium text-slate-500 bloomberg:text-[#888]">
+                            {currentTime}
+                        </span>
+                    </div>
+
+                    <div className="ml-auto flex items-center gap-3 sm:gap-4">
+                        <button
+                            onClick={() => document.dispatchEvent(new CustomEvent('open-search'))}
+                            className="glass-input hidden w-48 items-center gap-3 rounded-lg px-3 py-1.5 text-slate-400 transition-colors hover:text-slate-600 sm:flex lg:w-64 dark:hover:text-slate-300"
+                        >
+                            <Search size={16} />
+                            <span className="text-xs font-medium">Search...</span>
+                            <div className="ml-auto flex items-center gap-1 opacity-60">
+                                <span className="rounded bg-slate-200 px-1.5 text-[10px] dark:bg-slate-700">
+                                    Ctrl
+                                </span>
+                                <span className="rounded bg-slate-200 px-1.5 text-[10px] dark:bg-slate-700">
+                                    K
+                                </span>
+                            </div>
+                        </button>
+
+                        <button
+                            onClick={() => document.dispatchEvent(new CustomEvent('open-search'))}
+                            className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-slate-100 sm:hidden dark:hover:bg-slate-800"
+                        >
+                            <Search size={20} />
+                        </button>
+
+                        <div className="mx-1 hidden h-6 w-px bg-slate-200 dark:bg-slate-700/60 sm:block" />
+
+                        <div className="hidden sm:block">
+                            <ThemeToggle />
+                        </div>
+
+                        <div className="relative">
+                            <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setShowNotifications(!showNotifications)}
+                                className={cn(
+                                    'relative rounded-xl p-2.5 transition-all',
+                                    showNotifications
+                                        ? 'bg-slate-100 dark:bg-slate-800'
+                                        : 'hover:bg-slate-100 dark:hover:bg-slate-800'
                                 )}
-                                <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
+                            >
+                                <motion.div
+                                    animate={
+                                        unreadCount > 0 ? { rotate: [0, -15, 15, -15, 15, 0] } : {}
+                                    }
+                                    transition={{ duration: 0.4, ease: 'easeInOut' }}
+                                >
+                                    <Bell
+                                        size={20}
+                                        className="text-slate-600 dark:text-slate-300 bloomberg:text-[#888]"
+                                    />
+                                </motion.div>
+                                <AnimatePresence>
+                                    {unreadCount > 0 && (
+                                        <motion.span
+                                            initial={{ scale: 0 }}
+                                            animate={{ scale: 1 }}
+                                            exit={{ scale: 0 }}
+                                            className="absolute right-2 top-1.5 flex h-2.5 w-2.5"
+                                        >
+                                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full border-2 border-white bg-rose-500 dark:border-slate-900 bloomberg:border-black" />
+                                        </motion.span>
+                                    )}
+                                </AnimatePresence>
+                            </motion.button>
+
+                            <AnimatePresence>
+                                {showNotifications && (
+                                    <>
+                                        <motion.div
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            className="fixed inset-0 z-40 lg:hidden"
+                                            onClick={() => setShowNotifications(false)}
+                                        />
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="glass-card absolute right-0 top-full z-50 mt-3 w-80 overflow-hidden shadow-xl sm:w-96"
+                                        >
+                                            <div className="flex items-center justify-between border-b border-slate-200 p-4 dark:border-slate-700/60 bloomberg:border-[#2A2A2A]">
+                                                <h3 className="font-bold text-slate-800 dark:text-white bloomberg:text-[#F5A623]">
+                                                    Notifications
+                                                </h3>
+                                                {unreadCount > 0 && (
+                                                    <span className="text-xs font-semibold text-rose-500">
+                                                        {unreadCount} New
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="max-h-96 overflow-y-auto">
+                                                {notifications.length > 0 ? (
+                                                    notifications.map(notification => (
+                                                        <div
+                                                            key={notification.id}
+                                                            className="border-b border-slate-100 p-4 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                                                        >
+                                                            <div className="flex gap-3">
+                                                                <div
+                                                                    className={cn(
+                                                                        'mt-1.5 h-2 w-2 flex-shrink-0 rounded-full',
+                                                                        notification.unread
+                                                                            ? 'bg-rose-500'
+                                                                            : 'bg-emerald-500'
+                                                                    )}
+                                                                />
+                                                                <div>
+                                                                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                                                                        {notification.title}
+                                                                    </p>
+                                                                    <p className="mt-0.5 text-xs text-slate-500">
+                                                                        {notification.message}
+                                                                    </p>
+                                                                    <p className="mt-1 text-[10px] text-slate-400 font-data">
+                                                                        {notification.time}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="p-6 text-center text-sm text-slate-500">
+                                                        No new notifications
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    </>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        <div className="flex items-center gap-2 pl-1">
+                            <div className="mr-1 hidden flex-col items-end lg:flex">
+                                <span className="leading-tight text-sm font-bold text-slate-800 dark:text-white bloomberg:text-[#E5E5E5]">
+                                    {(currentUser as any)?.name || 'Admin'}
+                                </span>
+                                <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                                    {authMethod === 'GOOGLE' ? (
+                                        <Globe size={9} />
+                                    ) : (
+                                        <Fingerprint size={9} />
+                                    )}
                                     {authMethod || 'SECURED'}
                                 </span>
                             </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] font-medium text-gray-500">
-                            <Clock className="w-3 h-3" />
-                            <span>{currentTime}</span>
-                        </div>
-                    </div>
-
-                    <div className="hidden md:block w-px h-8 bg-gray-200/60 mx-2" />
-
-                    {/* Elite Business Unit Switcher */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowBusinessUnitMenu(!showBusinessUnitMenu)}
-                            className="group flex items-center gap-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-full bg-white/40 backdrop-blur-md border border-gray-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:border-white hover:bg-white/80 transition-all duration-300 transform hover:-translate-y-0.5"
-                        >
-                            <div
-                                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br ${currentBU.color} flex items-center justify-center shadow-inner relative overflow-hidden`}
-                            >
-                                <div className="absolute inset-0 bg-white/10 mix-blend-overlay"></div>
-                                <span className="text-sm sm:text-base relative z-10 drop-shadow-sm">
-                                    {currentBU.icon}
-                                </span>
-                            </div>
-                            <div className="text-left flex flex-col justify-center pr-1 sm:pr-2">
-                                <span className="text-[9px] sm:text-[10px] uppercase tracking-widest font-black text-gray-400 mb-0.5 leading-none">
-                                    Active Unit
-                                </span>
-                                <span className="text-xs sm:text-sm font-bold text-gray-800 leading-none tracking-tight">
-                                    {currentBU.name}
-                                </span>
-                            </div>
-                            <div className="pr-2 lg:pr-3">
+                            <div className="relative">
+                                {hasActiveShift && (
+                                    <div className="pointer-events-none absolute -inset-1 animate-pulse-ring rounded-full border border-emerald-500/50" />
+                                )}
                                 <div
-                                    className={`w-5 h-5 rounded-full flex items-center justify-center bg-gray-100 group-hover:bg-gray-200 transition-colors`}
+                                    className={cn(
+                                        'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border-2 sm:h-10 sm:w-10 sm:rounded-2xl',
+                                        hasActiveShift
+                                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10'
+                                            : 'border-transparent bg-slate-100 dark:bg-slate-800'
+                                    )}
                                 >
-                                    <ChevronDown
-                                        className={`w-3 h-3 text-gray-500 transition-transform duration-300 ${showBusinessUnitMenu ? 'rotate-180' : ''}`}
+                                    <User
+                                        size={18}
+                                        className={
+                                            hasActiveShift
+                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-slate-600 dark:text-slate-400'
+                                        }
                                     />
                                 </div>
                             </div>
-                        </button>
-
-                        <AnimatePresence>
-                            {showBusinessUnitMenu && (
-                                <>
-                                    <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        className="fixed inset-0 bg-black/5 z-40 backdrop-blur-[1px]"
-                                        onClick={() => setShowBusinessUnitMenu(false)}
-                                    />
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 10, scale: 0.98 }}
-                                        transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
-                                        className="absolute left-0 top-full mt-3 w-[300px] bg-white/95 backdrop-blur-2xl border border-gray-200/60 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] rounded-3xl p-2 z-50"
-                                    >
-                                        <div className="px-3 pt-3 pb-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                            Switch Division
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            {Object.entries(businessUnitConfig).map(
-                                                ([key, config]) => {
-                                                    const isActive = settings.businessUnit === key;
-                                                    return (
-                                                        <button
-                                                            key={key}
-                                                            onClick={() => {
-                                                                useSettingsStore
-                                                                    .getState()
-                                                                    .updateSettings({
-                                                                        businessUnit: key as
-                                                                            | 'FUEL'
-                                                                            | 'CNG'
-                                                                            | 'LUBE',
-                                                                    });
-                                                                setShowBusinessUnitMenu(false);
-                                                                window.location.href = '/';
-                                                            }}
-                                                            className={`relative flex items-center gap-4 w-full p-3 rounded-[20px] transition-all duration-200 text-left group
-                                                            ${isActive ? 'bg-gray-50' : 'hover:bg-gray-50/80'}
-                                                        `}
-                                                        >
-                                                            <div
-                                                                className={`w-11 h-11 rounded-full bg-gradient-to-br ${config.color} flex items-center justify-center shadow-sm relative overflow-hidden transition-transform group-hover:scale-105`}
-                                                            >
-                                                                <div className="absolute inset-0 bg-white/10 mix-blend-overlay"></div>
-                                                                <span className="text-xl relative z-10 drop-shadow-sm">
-                                                                    {config.icon}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <p
-                                                                    className={`text-sm tracking-tight font-bold leading-tight ${isActive ? 'text-gray-900' : 'text-gray-600 group-hover:text-gray-900'}`}
-                                                                >
-                                                                    {config.name}
-                                                                </p>
-                                                                <p className="text-[10px] font-bold text-gray-400 mt-0.5 uppercase tracking-widest">
-                                                                    {key}
-                                                                </p>
-                                                            </div>
-                                                            {isActive && (
-                                                                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] mr-2" />
-                                                            )}
-                                                        </button>
-                                                    );
-                                                }
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                </>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </div>
-
-                {/* MIDDLE: Search Bar - Minimal Sleek */}
-                <div className="hidden lg:flex flex-1 max-w-lg mx-4">
-                    <div className="relative w-full group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <Search className="w-4 h-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                         </div>
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={e => setSearchQuery(e.target.value)}
-                            placeholder="⌘K  Search everything..."
-                            className="w-full bg-gray-100/50 hover:bg-gray-100 focus:bg-white border text-sm font-medium border-gray-200/60 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 rounded-full pl-11 pr-10 py-2.5 transition-all text-gray-800 placeholder-gray-400"
-                        />
-                        {searchQuery && (
-                            <button
-                                onClick={() => setSearchQuery('')}
-                                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                            >
-                                <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                            </button>
-                        )}
                     </div>
                 </div>
-
-                {/* RIGHT: Notifications & User Profile */}
-                <div className="flex items-center gap-2 sm:gap-4">
-                    {/* Notification Bell - Clean Circle */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowNotifications(!showNotifications)}
-                            className="relative w-10 h-10 rounded-full flex items-center justify-center bg-white border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300 transition-all text-gray-500 hover:text-gray-900 focus:outline-none"
-                        >
-                            <Bell className="w-5 h-5" />
-                            {unreadCount > 0 && (
-                                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full"></span>
-                            )}
-                        </button>
-
-                        {/* Notifications Dropdown */}
-                        <AnimatePresence>
-                            {showNotifications && (
-                                <>
-                                    <div
-                                        className="fixed inset-0 z-40"
-                                        onClick={() => setShowNotifications(false)}
-                                    />
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 10, scale: 0.98 }}
-                                        transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
-                                        className="absolute right-0 mt-3 w-[340px] bg-white/95 backdrop-blur-2xl border border-gray-200/60 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] rounded-3xl overflow-hidden z-50"
-                                    >
-                                        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                                            <h3 className="text-sm font-bold text-gray-900 tracking-tight">
-                                                Notifications
-                                            </h3>
-                                            <Badge count={unreadCount} />
-                                        </div>
-                                        <div className="max-h-[300px] overflow-y-auto p-2">
-                                            {notifications.map(notification => (
-                                                <div
-                                                    key={notification.id}
-                                                    className={`p-3 rounded-2xl mb-1 cursor-pointer transition-colors flex gap-4 ${
-                                                        notification.unread
-                                                            ? 'bg-blue-50/50 hover:bg-blue-50/80'
-                                                            : 'hover:bg-gray-50'
-                                                    }`}
-                                                >
-                                                    <div
-                                                        className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${notification.unread ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'bg-transparent'}`}
-                                                    />
-                                                    <div>
-                                                        <p className="text-sm font-semibold text-gray-900 tracking-tight">
-                                                            {notification.title}
-                                                        </p>
-                                                        <p className="text-xs text-gray-500 mt-0.5 leading-snug">
-                                                            {notification.message}
-                                                        </p>
-                                                        <p className="text-[10px] font-bold text-gray-400 mt-2 uppercase tracking-wide">
-                                                            {notification.time}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </motion.div>
-                                </>
-                            )}
-                        </AnimatePresence>
-                    </div>
-
-                    {/* User Profile Menu - Ultra Sleek */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowUserMenu(!showUserMenu)}
-                            className="flex items-center gap-3 p-1 pr-3 lg:pr-4 rounded-full bg-white border border-gray-200/60 shadow-sm hover:shadow-md hover:border-gray-300 transition-all focus:outline-none group"
-                        >
-                            <div
-                                className={`w-8 h-8 lg:w-9 lg:h-9 rounded-full bg-gradient-to-br ${currentBU.color} flex items-center justify-center text-white shadow-sm`}
-                            >
-                                <span className="text-xs font-bold">
-                                    {(currentUser as any)?.name?.charAt(0) || 'U'}
-                                </span>
-                            </div>
-                            <div className="hidden sm:block text-left">
-                                <p className="text-sm font-bold text-gray-900 leading-none tracking-tight">
-                                    {(currentUser as any)?.name || 'Admin'}
-                                </p>
-                            </div>
-                            <ChevronDown className="w-3 h-3 text-gray-400 hidden sm:block group-hover:text-gray-600 transition-colors" />
-                        </button>
-
-                        <AnimatePresence>
-                            {showUserMenu && (
-                                <>
-                                    <div
-                                        className="fixed inset-0 z-40"
-                                        onClick={() => setShowUserMenu(false)}
-                                    />
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 10, scale: 0.98 }}
-                                        transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
-                                        className="absolute right-0 mt-3 w-64 bg-white/95 backdrop-blur-2xl border border-gray-200/60 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] rounded-3xl overflow-hidden z-50 p-2"
-                                    >
-                                        <div className="px-4 py-3 mb-2 bg-gray-50/80 rounded-2xl">
-                                            <p className="text-sm font-bold text-gray-900 tracking-tight">
-                                                {(currentUser as any)?.name || 'Admin User'}
-                                            </p>
-                                            <p className="text-xs text-gray-500 font-medium">
-                                                {currentUser?.email || 'System Session'}
-                                            </p>
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-gray-50 text-left transition-colors group">
-                                                <User className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
-                                                <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600">
-                                                    My Profile
-                                                </span>
-                                            </button>
-                                            <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-gray-50 text-left transition-colors group">
-                                                <Settings className="w-4 h-4 text-gray-400 group-hover:text-purple-500" />
-                                                <span className="text-sm font-medium text-gray-700 group-hover:text-purple-600">
-                                                    Preferences
-                                                </span>
-                                            </button>
-                                        </div>
-
-                                        <div className="my-1.5 border-t border-gray-100" />
-
-                                        <div className="space-y-1">
-                                            <button
-                                                onClick={() => {
-                                                    if (
-                                                        !window.confirm(
-                                                            'This will erase all local data. Are you sure?'
-                                                        )
-                                                    )
-                                                        return;
-                                                    useAuthStore.getState().clearAllData();
-                                                    window.location.href = '/';
-                                                }}
-                                                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-amber-50 text-left transition-colors group"
-                                            >
-                                                <X className="w-4 h-4 text-gray-400 group-hover:text-amber-500" />
-                                                <span className="text-sm font-medium text-gray-700 group-hover:text-amber-600">
-                                                    Clear Data
-                                                </span>
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    logout();
-                                                    window.location.href = '/';
-                                                }}
-                                                className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-rose-50 text-left transition-colors group"
-                                            >
-                                                <LogOut className="w-4 h-4 text-gray-400 group-hover:text-rose-500" />
-                                                <span className="text-sm font-medium text-gray-700 group-hover:text-rose-600">
-                                                    Sign Out
-                                                </span>
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                </>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </div>
-            </div>
-        </header>
-    );
-}
-
-// Helper
-function Badge({ count }: { count: number }) {
-    if (count === 0) return null;
-    return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded-full">
-            {count} New
-        </span>
+            </header>
+        </div>
     );
 }

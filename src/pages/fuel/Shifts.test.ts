@@ -8,14 +8,16 @@ describe('Shifts Page - Fuel Store', () => {
     });
 
     describe('Shift Closing Wizard', () => {
-        it('should initialize with step 0', () => {
+        it('should initialize with step 1', () => {
             const state = useFuelStore.getState();
-            expect(state.closingState.step).toBe(0);
+            expect(state.closingState.step).toBe(1);
         });
 
-        it('should load demo data with nozzles', () => {
-            useFuelStore.setState({ shifts: [] });
+        it('should load demo data with nozzles', async () => {
+            useFuelStore.setState({ shifts: [], nozzles: [], tanks: [] });
             
+            await useFuelStore.getState().fetchNozzles();
+            await useFuelStore.getState().fetchTanks();
 
             const state = useFuelStore.getState();
             expect(state.nozzles.length).toBeGreaterThan(0);
@@ -67,65 +69,57 @@ describe('Shifts Page - Fuel Store', () => {
 
         it('should update nozzle sale closing reading and calculate revenue', () => {
             const state = useFuelStore.getState();
-            const firstNozzle = state.closingState.nozzleSales[0];
-            const newClosingReading = firstNozzle.openingReading + 100;
+            const firstNozzle = state.closingState.readings[0];
+            const newClosingReading = firstNozzle.opening + 100;
 
-            useFuelStore.getState().updateNozzleSale(firstNozzle.nozzleId, {
-                closingReading: newClosingReading,
-                netSales: 100 - firstNozzle.testVolume,
-                revenue: (100 - firstNozzle.testVolume) * firstNozzle.rate,
+            useFuelStore.getState().updateNozzleReading(firstNozzle.nozzleId, {
+                closing: newClosingReading,
             });
 
             const updatedState = useFuelStore.getState();
-            const updatedNozzle = updatedState.closingState.nozzleSales.find(
+            const updatedNozzle = updatedState.closingState.readings.find(
                 s => s.nozzleId === firstNozzle.nozzleId
             );
 
-            expect(updatedNozzle?.closingReading).toBe(newClosingReading);
-            expect(updatedNozzle?.netSales).toBe(100 - firstNozzle.testVolume);
+            expect(updatedNozzle?.closing).toBe(newClosingReading);
+            expect(updatedNozzle?.netLiters).toBe(100 - firstNozzle.test);
             expect(updatedNozzle?.revenue).toBeGreaterThan(0);
         });
 
         it('should update test volume and recalculate net sales', () => {
             const state = useFuelStore.getState();
-            const firstNozzle = state.closingState.nozzleSales[0];
+            const firstNozzle = state.closingState.readings[0];
 
             // First set a closing reading
-            const closingReading = firstNozzle.openingReading + 100;
-            useFuelStore.getState().updateNozzleSale(firstNozzle.nozzleId, {
-                closingReading,
-                netSales: 100 - firstNozzle.testVolume,
-                revenue: (100 - firstNozzle.testVolume) * firstNozzle.rate,
+            const closingReading = firstNozzle.opening + 100;
+            useFuelStore.getState().updateNozzleReading(firstNozzle.nozzleId, {
+                closing: closingReading,
             });
 
             // Now change test volume
             const newTestVolume = 20;
-            const expectedNetSales = closingReading - firstNozzle.openingReading - newTestVolume;
+            const expectedNetSales = closingReading - firstNozzle.opening - newTestVolume;
 
-            useFuelStore.getState().updateNozzleSale(firstNozzle.nozzleId, {
-                testVolume: newTestVolume,
-                netSales: expectedNetSales,
-                revenue: expectedNetSales * firstNozzle.rate,
+            useFuelStore.getState().updateNozzleReading(firstNozzle.nozzleId, {
+                test: newTestVolume,
             });
 
             const updatedState = useFuelStore.getState();
-            const updatedNozzle = updatedState.closingState.nozzleSales.find(
+            const updatedNozzle = updatedState.closingState.readings.find(
                 s => s.nozzleId === firstNozzle.nozzleId
             );
 
-            expect(updatedNozzle?.testVolume).toBe(20);
-            expect(updatedNozzle?.netSales).toBe(expectedNetSales);
+            expect(updatedNozzle?.test).toBe(20);
+            expect(updatedNozzle?.netLiters).toBe(expectedNetSales);
         });
 
         it('should calculate total revenue correctly', () => {
             const state = useFuelStore.getState();
 
             // Update all nozzles with some sales
-            state.closingState.nozzleSales.forEach(nozzle => {
-                useFuelStore.getState().updateNozzleSale(nozzle.nozzleId, {
-                    closingReading: nozzle.openingReading + 50,
-                    netSales: 50 - nozzle.testVolume,
-                    revenue: (50 - nozzle.testVolume) * nozzle.rate,
+            state.closingState.readings.forEach(nozzle => {
+                useFuelStore.getState().updateNozzleReading(nozzle.nozzleId, {
+                    closing: nozzle.opening + 50,
                 });
             });
 
@@ -143,20 +137,22 @@ describe('Shifts Page - Fuel Store', () => {
         it('should calculate expected cash with all deductions', () => {
             // Set up some sales
             const state = useFuelStore.getState();
-            state.closingState.nozzleSales.forEach(nozzle => {
-                useFuelStore.getState().updateNozzleSale(nozzle.nozzleId, {
-                    closingReading: nozzle.openingReading + 50,
-                    netSales: 50 - nozzle.testVolume,
-                    revenue: (50 - nozzle.testVolume) * nozzle.rate,
+            state.closingState.readings.forEach(nozzle => {
+                useFuelStore.getState().updateNozzleReading(nozzle.nozzleId, {
+                    closing: nozzle.opening + 50,
                 });
             });
 
             // Add some recoveries and expenses
-            useFuelStore.getState().updateClosingState({
-                recoveriesTotal: 5000,
-                expensesTotal: 1000,
-                creditsTotal: 2000,
-            });
+            useFuelStore.getState().addTransaction({
+                id: 'tx-1', type: 'RECOVERY', amount: 5000, timestamp: ''
+            } as any);
+            useFuelStore.getState().addTransaction({
+                id: 'tx-2', type: 'EXPENSE', amount: 1000, timestamp: ''
+            } as any);
+            useFuelStore.getState().addTransaction({
+                id: 'tx-3', type: 'CREDIT_SALE', amount: 2000, timestamp: ''
+            } as any);
 
             const expectedCash = useFuelStore.getState().getExpectedCash();
             const revenue = useFuelStore.getState().getCalculatedRevenue();
@@ -168,11 +164,9 @@ describe('Shifts Page - Fuel Store', () => {
         it('should calculate cash variance correctly', () => {
             // Set up some sales
             const state = useFuelStore.getState();
-            state.closingState.nozzleSales.forEach(nozzle => {
-                useFuelStore.getState().updateNozzleSale(nozzle.nozzleId, {
-                    closingReading: nozzle.openingReading + 50,
-                    netSales: 50 - nozzle.testVolume,
-                    revenue: (50 - nozzle.testVolume) * nozzle.rate,
+            state.closingState.readings.forEach(nozzle => {
+                useFuelStore.getState().updateNozzleReading(nozzle.nozzleId, {
+                    closing: nozzle.opening + 50,
                 });
             });
 

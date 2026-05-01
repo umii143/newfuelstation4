@@ -21,7 +21,7 @@ import React, { useState } from 'react';
 
 const StaffManager: React.FC = () => {
     const {
-        users,
+        getActiveStaff,
         addStaff,
         updateStaff,
         deleteStaff,
@@ -58,7 +58,7 @@ const StaffManager: React.FC = () => {
         'OFFICE_STAFF',
     ];
 
-    const filteredStaff = users.filter(staff => {
+    const filteredStaff = getActiveStaff().filter(staff => {
         const matchesSearch =
             staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             staff.phone.includes(searchTerm);
@@ -122,7 +122,7 @@ const StaffManager: React.FC = () => {
                 }
             />
 
-            {users.length === 0 ? (
+            {getActiveStaff().length === 0 ? (
                 <Card className="p-16 border-dashed border-2 border-blue-100 flex flex-col items-center justify-center text-center space-y-6">
                     <div className="w-24 h-24 bg-blue-50 rounded-3xl flex items-center justify-center text-blue-500 shadow-inner">
                         <Users size={48} />
@@ -132,7 +132,7 @@ const StaffManager: React.FC = () => {
                             No Staff Members Registered
                         </h2>
                         <p className="text-gray-500 max-w-sm mt-2 font-medium">
-                            Your fuel station needs staff to operate. Register your first Attendant,
+                            Your current business unit needs staff to operate. Register your first Attendant,
                             Manager or Cashier to start tracking performance.
                         </p>
                     </div>
@@ -152,7 +152,7 @@ const StaffManager: React.FC = () => {
                                 Total Staff
                             </p>
                             <p className="text-2xl font-bold text-blue-900">
-                                {users.filter(u => u.status === 'ACTIVE').length}
+                                {getActiveStaff().length}
                             </p>
                         </div>
                         <div className="p-2 bg-blue-100 rounded-lg">
@@ -165,7 +165,7 @@ const StaffManager: React.FC = () => {
                                 Active Now
                             </p>
                             <p className="text-2xl font-bold text-green-900">
-                                {users.filter(u => u.status === 'ACTIVE').length}
+                                {getActiveStaff().filter(u => u.status === 'ACTIVE').length}
                             </p>
                         </div>
                         <div className="p-2 bg-green-100 rounded-lg">
@@ -178,7 +178,7 @@ const StaffManager: React.FC = () => {
                                 Managers
                             </p>
                             <p className="text-2xl font-bold text-purple-900">
-                                {users.filter(u => u.role === 'MANAGER').length}
+                                {getActiveStaff().filter(u => u.role === 'MANAGER').length}
                             </p>
                         </div>
                         <div className="p-2 bg-purple-100 rounded-lg">
@@ -192,7 +192,7 @@ const StaffManager: React.FC = () => {
                             </p>
                             <p className="text-2xl font-bold text-orange-900">
                                 ₨
-                                {users
+                                {getActiveStaff()
                                     .filter(u => u.status === 'ACTIVE')
                                     .reduce((acc, u) => acc + (u.baseSalary || 0), 0)
                                     .toLocaleString()}

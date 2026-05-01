@@ -15,6 +15,7 @@ import type {
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useFuelStore } from './fuelStore';
+import { useSettingsStore } from './authStore';
 
 // ============================================
 // CONFIGURATION STORE
@@ -39,7 +40,7 @@ interface ConfigState {
     updateStationConfig: (updates: Partial<Station>) => void;
 
     // Tank Actions
-    addTank: (tank: Omit<TankConfiguration, 'tankId' | 'maintenanceHistory'>) => void;
+    addTank: (tank: Omit<TankConfiguration, 'tankId' | 'maintenanceHistory' | 'businessUnit'>) => void;
     updateTank: (tankId: string, updates: Partial<TankConfiguration>) => void;
     deleteTank: (tankId: string) => void;
     updateTankLevel: (tankId: string, level: number) => void;
@@ -47,7 +48,7 @@ interface ConfigState {
 
     // Nozzle Actions
     addNozzle: (
-        nozzle: Omit<NozzleConfiguration, 'nozzleId' | 'maintenanceHistory' | 'performanceMetrics'>
+        nozzle: Omit<NozzleConfiguration, 'nozzleId' | 'maintenanceHistory' | 'performanceMetrics' | 'businessUnit'>
     ) => void;
     updateNozzle: (nozzleId: string, updates: Partial<NozzleConfiguration>) => void;
     deleteNozzle: (nozzleId: string) => void;
@@ -117,8 +118,10 @@ export const useConfigStore = create<ConfigState>()(
 
             // Tank Actions
             addTank: tankData => {
+                const { settings } = useSettingsStore.getState();
                 const newTank: TankConfiguration = {
                     ...tankData,
+                    businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     tankId: `TK-${Date.now()}`,
                     maintenanceHistory: [],
                     lastUpdated: new Date().toISOString(),
@@ -212,8 +215,10 @@ export const useConfigStore = create<ConfigState>()(
 
             // Nozzle Actions
             addNozzle: nozzleData => {
+                const { settings } = useSettingsStore.getState();
                 const newNozzle: NozzleConfiguration = {
                     ...nozzleData,
+                    businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     nozzleId: `NOZ-${Date.now()}`,
                     performanceMetrics: {
                         totalLitersDispensed: 0,
@@ -391,14 +396,17 @@ export const useConfigStore = create<ConfigState>()(
                     );
                 }
 
-                // Sync with fuel store - update SALE price for all tanks of this fuel type
+                // Sync with fuel store - update SALE price for all tanks of this fuel type (BU-scoped)
                 try {
+                    const { settings: syncSettings } = useSettingsStore.getState();
                     const fuelStore = useFuelStore.getState();
-                    get().tankConfigs.forEach(tank => {
-                        if (tank.fuelType === fuelType) {
-                            fuelStore.updateFuelPrice(tank.tankId, tank.costPrice, newRate);
-                        }
-                    });
+                    get().tankConfigs
+                        .filter(tank => tank.businessUnit === syncSettings.businessUnit)
+                        .forEach(tank => {
+                            if (tank.fuelType === fuelType) {
+                                fuelStore.updateFuelPrice(tank.tankId, tank.costPrice, newRate);
+                            }
+                        });
                 } catch (e) {
                     console.warn('Could not sync rate change with fuel store:', e);
                 }
@@ -483,35 +491,56 @@ export const useConfigStore = create<ConfigState>()(
                 return get().systemAlerts.filter(a => !a.isDismissed);
             },
 
-            // Getters
+            // Getters — ALL scoped to active businessUnit
             getTankById: tankId => {
-                return get().tankConfigs.find(t => t.tankId === tankId);
+                const { settings } = useSettingsStore.getState();
+                return get().tankConfigs.find(
+                    t => t.tankId === tankId && t.businessUnit === settings.businessUnit
+                );
             },
 
             getNozzleById: nozzleId => {
-                return get().nozzleConfigs.find(n => n.nozzleId === nozzleId);
+                const { settings } = useSettingsStore.getState();
+                return get().nozzleConfigs.find(
+                    n => n.nozzleId === nozzleId && n.businessUnit === settings.businessUnit
+                );
             },
 
             getNozzlesForTank: tankId => {
-                return get().nozzleConfigs.filter(n => n.tankId === tankId);
+                const { settings } = useSettingsStore.getState();
+                return get().nozzleConfigs.filter(
+                    n => n.tankId === tankId && n.businessUnit === settings.businessUnit
+                );
             },
 
             getActiveNozzles: () => {
-                return get().nozzleConfigs.filter(n => n.isActive && n.status === 'ACTIVE');
+                const { settings } = useSettingsStore.getState();
+                return get().nozzleConfigs.filter(
+                    n => n.isActive && n.status === 'ACTIVE' && n.businessUnit === settings.businessUnit
+                );
             },
 
             getTankFillPercentage: tankId => {
-                const tank = get().tankConfigs.find(t => t.tankId === tankId);
+                const { settings } = useSettingsStore.getState();
+                const tank = get().tankConfigs.find(
+                    t => t.tankId === tankId && t.businessUnit === settings.businessUnit
+                );
                 if (!tank) return 0;
                 return (tank.currentLevel / tank.capacity) * 100;
             },
 
             getLowInventoryTanks: () => {
-                return get().tankConfigs.filter(t => t.currentLevel <= t.minimumThresholdLevel);
+                const { settings } = useSettingsStore.getState();
+                return get().tankConfigs.filter(
+                    t => t.currentLevel <= t.minimumThresholdLevel && t.businessUnit === settings.businessUnit
+                );
             },
 
             calculateDaysUntilRefill: tankId => {
-                const tank = get().tankConfigs.find(t => t.tankId === tankId);
+                const { settings } = useSettingsStore.getState();
+                const tank = get().tankConfigs.find(
+                    t => t.tankId === tankId && t.businessUnit === settings.businessUnit
+                );
                 if (!tank) return 0;
 
                 // Get average daily consumption from nozzle metrics

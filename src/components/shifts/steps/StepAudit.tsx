@@ -84,13 +84,16 @@ export const StepAudit: React.FC<StepProps> = ({ data, mode }) => {
     const digital = transactions
         .filter((t: any) => t.type === 'DIGITAL_PAYMENT')
         .reduce((s: number, t: any) => s + t.amount, 0);
+    const bankDeposits = transactions
+        .filter((t: any) => t.type === 'BANK_DEPOSIT')
+        .reduce((s: number, t: any) => s + t.amount, 0);
 
-    const expectedCash = totalRevenue - credits + recoveries - expenses - digital;
+    const expectedCash = totalRevenue - credits + recoveries - expenses - digital - bankDeposits;
     const actualCash = data?.actualCash ?? 0;
     const variance = actualCash - expectedCash;
     const isBalanced = Math.abs(variance) < 100;
-
-    const shiftId = `SHF-${mode}-${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    // Use the actual shift ID from wizard state, not a random one
+    const shiftId = data?.shiftId || `SHF-${mode}-${new Date().toISOString().slice(0, 10)}`;
 
     // Group readings by fuel type for bar chart section
     const byFuel = readings.reduce<

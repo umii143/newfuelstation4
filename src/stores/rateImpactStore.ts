@@ -11,6 +11,7 @@ import { persist } from 'zustand/middleware';
 import { useConfigStore } from './configStore';
 import { useCustomerStore } from './dataStores';
 import { useFuelStore } from './fuelStore';
+import { useSettingsStore } from './authStore';
 
 // ============================================
 // RATE CHANGE IMPACT STORE
@@ -98,8 +99,9 @@ export const useRateImpactStore = create<RateImpactState>()(
             // Capture inventory snapshot at time of rate change
             captureInventorySnapshot: rateChange => {
                 const configStore = useConfigStore.getState();
+                const { settings } = useSettingsStore.getState();
                 const tanks = configStore.tankConfigs.filter(
-                    t => t.fuelType === rateChange.fuelType && t.isActive
+                    t => t.fuelType === rateChange.fuelType && t.isActive && t.businessUnit === settings.businessUnit
                 );
 
                 const snapshots: InventorySnapshot[] = tanks.map(tank => ({
@@ -238,9 +240,10 @@ export const useRateImpactStore = create<RateImpactState>()(
 
                 if (!rateChange) return [];
 
-                // Get customers with outstanding balances
+                // Get customers with outstanding balances (BU-scoped)
+                const { settings } = useSettingsStore.getState();
                 const customersWithCredit = customerStore.customers.filter(
-                    c => (c.currentBalance || 0) > 0
+                    c => (c.currentBalance || 0) > 0 && c.businessUnit === settings.businessUnit
                 );
 
                 // Calculate adjustments (simplified - assumes all credit is for this fuel type)

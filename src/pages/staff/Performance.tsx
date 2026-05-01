@@ -11,7 +11,8 @@ import {
 import React, { useState } from 'react';
 
 export const PerformancePage: React.FC = () => {
-    const { users } = useStaffStore();
+    const { getActiveStaff } = useStaffStore();
+    const users = getActiveStaff();
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredUsers = users.filter(

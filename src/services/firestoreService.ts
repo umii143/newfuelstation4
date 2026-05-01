@@ -13,7 +13,33 @@ import {
     updateDoc,
     type DocumentData,
 } from 'firebase/firestore';
+import { stampBusinessScope, type BusinessUnit } from '@/lib/businessScope';
 import { COLLECTIONS, db, stationCol, stationDoc } from '@/lib/db';
+
+const COLLECTION_DEFAULT_BUSINESS: Partial<Record<string, BusinessUnit>> = {
+    [COLLECTIONS.FUEL_SHIFTS]: 'FUEL',
+    [COLLECTIONS.FUEL_TANKS]: 'FUEL',
+    [COLLECTIONS.NOZZLE_CONFIGS]: 'FUEL',
+    [COLLECTIONS.TANK_CONFIGS]: 'FUEL',
+    [COLLECTIONS.CNG_SHIFTS]: 'CNG',
+    [COLLECTIONS.CNG_CASCADES]: 'CNG',
+    [COLLECTIONS.CNG_NOZZLES]: 'CNG',
+};
+
+const applyBusinessScope = (
+    collectionName: string,
+    data: Record<string, any>
+): Record<string, any> => {
+    const hasExplicitScope =
+        typeof data.businessUnit === 'string' || typeof data.business_id === 'string';
+    const defaultBusiness = COLLECTION_DEFAULT_BUSINESS[collectionName];
+
+    if (!hasExplicitScope && !defaultBusiness) {
+        return data;
+    }
+
+    return stampBusinessScope(data, data.businessUnit || defaultBusiness);
+};
 
 // ── Generic save (upsert by ID) ─────────────────────────────────────────────
 export const fsSet = async <T extends DocumentData>(
@@ -23,8 +49,9 @@ export const fsSet = async <T extends DocumentData>(
     data: T
 ): Promise<void> => {
     try {
+        const payload = applyBusinessScope(collectionName, data as Record<string, any>);
         await setDoc(stationDoc(stationId, collectionName, id), {
-            ...data,
+            ...payload,
             _updatedAt: new Date().toISOString(),
         });
     } catch (err) {
@@ -39,8 +66,9 @@ export const fsAdd = async <T extends DocumentData>(
     data: T
 ): Promise<string> => {
     try {
+        const payload = applyBusinessScope(collectionName, data as Record<string, any>);
         const ref = await addDoc(stationCol(stationId, collectionName), {
-            ...data,
+            ...payload,
             _createdAt: new Date().toISOString(),
         });
         return ref.id;
@@ -72,8 +100,9 @@ export const fsUpdate = async (
     data: Partial<DocumentData>
 ): Promise<void> => {
     try {
+        const payload = applyBusinessScope(collectionName, data as Record<string, any>);
         await updateDoc(stationDoc(stationId, collectionName, id), {
-            ...data,
+            ...payload,
             _updatedAt: new Date().toISOString(),
         });
     } catch (err) {
@@ -96,39 +125,48 @@ export const fsDelete = async (
 
 // ── Named collection loaders (for useFirestoreInit) ──────────────────────────
 export const loadAllCollections = async (stationId: string) => {
+    // 5-second timeout to prevent indefinite hanging when offline or using dummy credentials
+    const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Firestore sync timed out')), 5000)
+    );
+
     const [
         shifts, cngShifts, tanks, cngCascades, cngNozzles,
         customers, suppliers, staff, attendance, expenses,
         products, sales, customerLedger, supplierLedger,
-        cashBank, staffLedger, auditLogs, profitEntries,
+        cashBank, cashLedger, staffLedger, auditLogs, profitEntries,
         discounts
-    ] = await Promise.all([
-        fsLoadAll(stationId, COLLECTIONS.FUEL_SHIFTS),
-        fsLoadAll(stationId, COLLECTIONS.CNG_SHIFTS),
-        fsLoadAll(stationId, COLLECTIONS.FUEL_TANKS),
-        fsLoadAll(stationId, COLLECTIONS.CNG_CASCADES),
-        fsLoadAll(stationId, COLLECTIONS.CNG_NOZZLES),
-        fsLoadAll(stationId, COLLECTIONS.CUSTOMERS),
-        fsLoadAll(stationId, COLLECTIONS.SUPPLIERS),
-        fsLoadAll(stationId, COLLECTIONS.STAFF),
-        fsLoadAll(stationId, COLLECTIONS.ATTENDANCE),
-        fsLoadAll(stationId, COLLECTIONS.EXPENSES),
-        fsLoadAll(stationId, COLLECTIONS.PRODUCTS),
-        fsLoadAll(stationId, COLLECTIONS.SALES),
-        fsLoadAll(stationId, COLLECTIONS.CUSTOMER_LEDGER),
-        fsLoadAll(stationId, COLLECTIONS.SUPPLIER_LEDGER),
-        fsLoadAll(stationId, COLLECTIONS.CASH_BANK),
-        fsLoadAll(stationId, COLLECTIONS.STAFF_LEDGER),
-        fsLoadAll(stationId, COLLECTIONS.AUDIT_LOGS),
-        fsLoadAll(stationId, COLLECTIONS.PROFIT_ENTRIES),
-        fsLoadAll(stationId, COLLECTIONS.DISCOUNTS),
-    ]);
+    ] = await Promise.race([
+        Promise.all([
+            fsLoadAll(stationId, COLLECTIONS.FUEL_SHIFTS),
+            fsLoadAll(stationId, COLLECTIONS.CNG_SHIFTS),
+            fsLoadAll(stationId, COLLECTIONS.FUEL_TANKS),
+            fsLoadAll(stationId, COLLECTIONS.CNG_CASCADES),
+            fsLoadAll(stationId, COLLECTIONS.CNG_NOZZLES),
+            fsLoadAll(stationId, COLLECTIONS.CUSTOMERS),
+            fsLoadAll(stationId, COLLECTIONS.SUPPLIERS),
+            fsLoadAll(stationId, COLLECTIONS.STAFF),
+            fsLoadAll(stationId, COLLECTIONS.ATTENDANCE),
+            fsLoadAll(stationId, COLLECTIONS.EXPENSES),
+            fsLoadAll(stationId, COLLECTIONS.PRODUCTS),
+            fsLoadAll(stationId, COLLECTIONS.SALES),
+            fsLoadAll(stationId, COLLECTIONS.CUSTOMER_LEDGER),
+            fsLoadAll(stationId, COLLECTIONS.SUPPLIER_LEDGER),
+            fsLoadAll(stationId, COLLECTIONS.CASH_BANK),
+            fsLoadAll(stationId, COLLECTIONS.CASH_LEDGER),
+            fsLoadAll(stationId, COLLECTIONS.STAFF_LEDGER),
+            fsLoadAll(stationId, COLLECTIONS.AUDIT_LOGS),
+            fsLoadAll(stationId, COLLECTIONS.PROFIT_ENTRIES),
+            fsLoadAll(stationId, COLLECTIONS.DISCOUNTS),
+        ]),
+        timeoutPromise
+    ]) as any;
 
     return {
         shifts, cngShifts, tanks, cngCascades, cngNozzles,
         customers, suppliers, staff, attendance, expenses,
         products, sales, customerLedger, supplierLedger,
-        cashBank, staffLedger, auditLogs, profitEntries,
+        cashBank, cashLedger, staffLedger, auditLogs, profitEntries,
         discounts,
     };
 };

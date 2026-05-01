@@ -31,7 +31,9 @@ const formatDate = (dateString: string) => {
 };
 
 export const AttendancePage: React.FC = () => {
-    const { users, attendance, recordClockIn, recordClockOut, isLoading } = useStaffStore();
+    const { getActiveStaff, getFilteredAttendance, recordClockIn, recordClockOut, isLoading } = useStaffStore();
+    const users = getActiveStaff();
+    const attendance = getFilteredAttendance();
     const [searchQuery, setSearchQuery] = useState('');
     const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
     const [showAllDates, setShowAllDates] = useState(false);

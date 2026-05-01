@@ -426,7 +426,7 @@ export const LubeDashboard: React.FC<LubeDashboardProps> = ({ onNavigate }) => {
     // Get date range based on period
     const getDateRange = () => {
         const now = new Date();
-        let start = new Date();
+        const start = new Date();
 
         switch (timePeriod) {
             case 'today':

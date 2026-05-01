@@ -6,6 +6,7 @@ import { useFirestoreInit } from '@/hooks/useFirestoreInit';
 import React, { Suspense, useEffect, useState } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/db';
+import { ToastContainer } from '@/components/ui/ToastContainer';
 
 // ── Lazy-loaded pages (code splitting) ──────────────────────
 const CNGActivityPage = React.lazy(() => import('@/pages/cng/CNGActivity').then(m => ({ default: m.CNGActivityPage })));
@@ -30,6 +31,7 @@ const FuelDashboard = React.lazy(() => import('@/pages/fuel/FuelDashboard').then
 const PriceManagement = React.lazy(() => import('@/pages/fuel/PriceManagement'));
 const PurchaseOrdersPage = React.lazy(() => import('@/pages/fuel/PurchaseOrders').then(m => ({ default: m.PurchaseOrdersPage })));
 const ShiftActivityPage = React.lazy(() => import('@/pages/fuel/ShiftActivity').then(m => ({ default: m.ShiftActivityPage })));
+const FuelReportsPage = React.lazy(() => import('@/pages/fuel/FuelReports').then(m => ({ default: m.FuelReportsPage })));
 const ShiftsPage = React.lazy(() => import('@/pages/fuel/Shifts'));
 const TanksPage = React.lazy(() => import('@/pages/fuel/Tanks').then(m => ({ default: m.TanksPage })));
 const CashBankPage = React.lazy(() => import('@/pages/lube/CashBank'));
@@ -55,6 +57,31 @@ const App: React.FC = () => {
     const [currentPath, setCurrentPath] = useState('/');
     const [authInitialized, setAuthInitialized] = useState(false);
 
+    // Apply Theme to HTML — 3-mode: light / dark / bloomberg
+    useEffect(() => {
+        const root = document.documentElement;
+        root.classList.remove('dark', 'bloomberg');
+        if (settings.theme === 'dark' || settings.theme === 'deep-obsidian') {
+            root.classList.add('dark');
+        } else if (settings.theme === 'bloomberg') {
+            root.classList.add('bloomberg');
+        }
+    }, [settings.theme]);
+
+    // Ctrl+Shift+T: cycle themes
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+                e.preventDefault();
+                const cycle: Record<string, string> = { light: 'deep-obsidian', 'glassy-white': 'deep-obsidian', dark: 'bloomberg', 'deep-obsidian': 'bloomberg', bloomberg: 'light' };
+                const next = cycle[settings.theme] || 'deep-obsidian';
+                useSettingsStore.getState().updateSettings({ theme: next });
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [settings.theme]);
+
     // Listen for Firebase auth state changes
     useEffect(() => {
         const initAuth = async () => {
@@ -63,23 +90,40 @@ const App: React.FC = () => {
                 const unsubscribe = onAuthChange(async user => {
                     if (user) {
                         try {
-                            // Fetch user's station mapping from Firestore
+                            // Fetch user's station mapping from Firestore with timeout
                             const userRef = doc(db, 'users', user.uid);
-                            const userSnap = await getDoc(userRef);
+                            
+                            // 5-second timeout for Firestore to prevent infinite loading
+                            const timeoutPromise = new Promise<never>((_, reject) => 
+                                setTimeout(() => reject(new Error('Firestore connection timeout')), 5000)
+                            );
                             
                             let userStationId = 'STN-001'; // Default legacy fallback
                             
-                            if (userSnap.exists()) {
-                                userStationId = userSnap.data().stationId || 'STN-001';
-                            } else {
-                                // First time login - provision their profile
-                                await setDoc(userRef, {
-                                    email: user.email,
-                                    name: user.displayName || user.email || 'Admin',
-                                    role: 'admin',
-                                    stationId: 'STN-001',
-                                    createdAt: new Date().toISOString()
-                                });
+                            try {
+                                const userSnap = await Promise.race([
+                                    getDoc(userRef),
+                                    timeoutPromise
+                                ]) as any;
+                                
+                                if (userSnap.exists()) {
+                                    userStationId = userSnap.data().stationId || 'STN-001';
+                                } else {
+                                    // First time login - provision their profile (also with timeout)
+                                    await Promise.race([
+                                        setDoc(userRef, {
+                                            email: user.email,
+                                            name: user.displayName || user.email || 'Admin',
+                                            role: 'admin',
+                                            stationId: 'STN-001',
+                                            createdAt: new Date().toISOString()
+                                        }),
+                                        timeoutPromise
+                                    ]);
+                                }
+                            } catch (firestoreError) {
+                                console.warn('Firestore fetch timed out or failed, using defaults:', firestoreError);
+                                // Continue with default userStationId
                             }
 
                             // Firebase user detected, update auth store
@@ -139,6 +183,8 @@ const App: React.FC = () => {
         }
     }, [authInitialized]);
 
+    // Theme is already synchronized by the effect above — duplicate removed
+
     // Initialize Firestore and hydrate stores on login
     const { isLoading: isFirestoreLoading } = useFirestoreInit();
 
@@ -152,7 +198,8 @@ const App: React.FC = () => {
     }, []);
 
     const navigate = (path: string) => {
-        setCurrentPath(path);
+        const pathname = path.split('?')[0];
+        setCurrentPath(pathname);
         window.history.pushState({}, '', path);
         window.scrollTo(0, 0);
     };
@@ -190,6 +237,8 @@ const App: React.FC = () => {
                 return <PurchaseOrdersPage />;
             case '/fuel/pricing':
                 return <PriceManagement />;
+            case '/fuel/reports':
+                return <FuelReportsPage onNavigate={navigate} />;
 
             // Lube Management
             case '/lube/dashboard':
@@ -211,7 +260,7 @@ const App: React.FC = () => {
             case '/lube/cash-bank':
                 return <CashBankPage />;
             case '/lube/reports':
-                return <LubeReportsPage />;
+                return <LubeReportsPage onNavigate={navigate} />;
             case '/lube/settings':
                 return <LubeSettingsPage />;
 
@@ -231,7 +280,7 @@ const App: React.FC = () => {
             case '/cng/rates':
                 return <CNGRatesPage />;
             case '/cng/reports':
-                return <CNGReportsPage />;
+                return <CNGReportsPage onNavigate={navigate} />;
             case '/cng/settings':
                 return <CNGSettingsPage />;
             case '/cng/staff':
@@ -295,6 +344,7 @@ const App: React.FC = () => {
 
     return (
         <ErrorBoundary>
+            <ToastContainer />
             <Layout currentPath={currentPath} onNavigate={navigate}>
                 <Suspense
                     fallback={

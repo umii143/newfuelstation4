@@ -1,7 +1,10 @@
-import { Badge, Button, Card, PageHeader } from '@/components/ui';
+import { Badge, Button, PageHeader } from '@/components/ui';
+import { useAuthStore } from '@/stores/authStore';
+import { useCNGStore } from '@/stores/cngStore';
 import { useFuelStore } from '@/stores/fuelStore';
 import type { DigitalCashEntry, DigitalPaymentMethod } from '@/types';
 import clsx from 'clsx';
+import { SkeletonStats, SkeletonList } from '@/components/shared/skeletons/SkeletonList';
 import {
     CreditCard,
     DollarSign,
@@ -14,6 +17,7 @@ import {
     X,
 } from 'lucide-react';
 import React, { useState } from 'react';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 // Helper function: Format currency
 const formatCurrency = (amount: number): string => {
@@ -57,7 +61,18 @@ const getMethodConfig = (method: DigitalPaymentMethod) => {
 };
 
 export const DigitalCashPage: React.FC = () => {
-    const { shifts } = useFuelStore();
+    const { settings } = useAuthStore();
+    const isCNG = settings.businessUnit === 'CNG';
+    
+    
+    const fuelStore = useFuelStore();
+    const cngStore = useCNGStore();
+
+    const shifts = isCNG ? cngStore.shifts : fuelStore.shifts;
+    const isLoading = isCNG ? cngStore.isLoading : fuelStore.isLoading;
+    const addDigitalCashEntry = isCNG 
+        ? () => {} // CNG store might need this
+        : fuelStore.addDigitalCashEntry;
     const [searchQuery, setSearchQuery] = useState('');
     const [filterMethod, setFilterMethod] = useState<DigitalPaymentMethod | 'ALL'>('ALL');
     const [dateRange, setDateRange] = useState<'TODAY' | 'WEEK' | 'MONTH' | 'ALL'>('MONTH');
@@ -70,8 +85,6 @@ export const DigitalCashPage: React.FC = () => {
         reference: '',
         shiftId: '',
     });
-
-    const { addDigitalCashEntry } = useFuelStore();
 
     // Default shift for new payment
     const defaultShiftId = shifts.length > 0 ? shifts[0].shiftId : 'SH-AUTO-001';
@@ -158,89 +171,93 @@ export const DigitalCashPage: React.FC = () => {
             />
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Total Payments */}
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/10 border border-indigo-500/30 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                            <Wallet className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-indigo-400 uppercase tracking-wide font-medium">
-                                {dateRange === 'TODAY'
-                                    ? "Today's"
-                                    : dateRange === 'WEEK'
-                                      ? 'This Week'
-                                      : dateRange === 'MONTH'
-                                        ? 'This Month'
-                                        : 'Total'}{' '}
-                                Digital
-                            </p>
-                            <p className="text-2xl font-bold text-indigo-500">
-                                {formatCurrency(totalPayments)}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                        <TrendingUp className="w-4 h-4 text-emerald-500" />
-                        <span>{filteredPayments.length} transactions</span>
-                    </div>
-                </div>
-
-                {/* Method Cards */}
-                {methodTotals.slice(0, 3).map(method => (
-                    <div
-                        key={method.value}
-                        className={clsx(
-                            'p-5 rounded-2xl border backdrop-blur-sm',
-                            method.color === 'rose' &&
-                                'bg-gradient-to-br from-rose-500/20 to-pink-500/10 border-rose-500/30',
-                            method.color === 'emerald' &&
-                                'bg-gradient-to-br from-emerald-500/20 to-green-500/10 border-emerald-500/30',
-                            method.color === 'blue' &&
-                                'bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border-blue-500/30',
-                            method.color === 'purple' &&
-                                'bg-gradient-to-br from-purple-500/20 to-indigo-500/10 border-purple-500/30'
-                        )}
-                    >
+            {isLoading ? (
+                <SkeletonStats count={4} />
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {/* Total Payments */}
+                    <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/10 border border-indigo-500/30 backdrop-blur-sm">
                         <div className="flex items-center gap-3 mb-3">
-                            <div
-                                className={clsx(
-                                    'w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg',
-                                    method.color === 'rose' &&
-                                        'bg-gradient-to-br from-rose-500 to-pink-500 shadow-rose-500/30',
-                                    method.color === 'emerald' &&
-                                        'bg-gradient-to-br from-emerald-500 to-green-500 shadow-emerald-500/30',
-                                    method.color === 'blue' &&
-                                        'bg-gradient-to-br from-blue-500 to-cyan-500 shadow-blue-500/30',
-                                    method.color === 'purple' &&
-                                        'bg-gradient-to-br from-purple-500 to-indigo-500 shadow-purple-500/30'
-                                )}
-                            >
-                                {method.icon}
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                                <Wallet className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <p className="text-xs text-[var(--text-secondary)] uppercase tracking-wide font-medium">
-                                    {method.label}
+                                <p className="text-xs text-indigo-400 uppercase tracking-wide font-medium">
+                                    {dateRange === 'TODAY'
+                                        ? "Today's"
+                                        : dateRange === 'WEEK'
+                                          ? 'This Week'
+                                          : dateRange === 'MONTH'
+                                            ? 'This Month'
+                                            : 'Total'}{' '}
+                                    Digital
                                 </p>
-                                <p className="text-xl font-bold text-[var(--text-primary)]">
-                                    {formatCurrency(method.total)}
+                                <p className="text-2xl font-bold text-indigo-500">
+                                    {formatCurrency(totalPayments)}
                                 </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                            <span>{method.count} transactions</span>
-                            <span>•</span>
-                            <span>
-                                {totalPayments > 0
-                                    ? ((method.total / totalPayments) * 100).toFixed(0)
-                                    : 0}
-                                %
-                            </span>
+                            <TrendingUp className="w-4 h-4 text-emerald-500" />
+                            <span>{filteredPayments.length} transactions</span>
                         </div>
                     </div>
-                ))}
-            </div>
+
+                    {/* Method Cards */}
+                    {methodTotals.slice(0, 3).map(method => (
+                        <div
+                            key={method.value}
+                            className={clsx(
+                                'p-5 rounded-2xl border backdrop-blur-sm',
+                                method.color === 'rose' &&
+                                    'bg-gradient-to-br from-rose-500/20 to-pink-500/10 border-rose-500/30',
+                                method.color === 'emerald' &&
+                                    'bg-gradient-to-br from-emerald-500/20 to-green-500/10 border-emerald-500/30',
+                                method.color === 'blue' &&
+                                    'bg-gradient-to-br from-blue-500/20 to-cyan-500/10 border-blue-500/30',
+                                method.color === 'purple' &&
+                                    'bg-gradient-to-br from-purple-500/20 to-indigo-500/10 border-purple-500/30'
+                            )}
+                        >
+                            <div className="flex items-center gap-3 mb-3">
+                                <div
+                                    className={clsx(
+                                        'w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg',
+                                        method.color === 'rose' &&
+                                            'bg-gradient-to-br from-rose-500 to-pink-500 shadow-rose-500/30',
+                                        method.color === 'emerald' &&
+                                            'bg-gradient-to-br from-emerald-500 to-green-500 shadow-emerald-500/30',
+                                        method.color === 'blue' &&
+                                            'bg-gradient-to-br from-blue-500 to-cyan-500 shadow-blue-500/30',
+                                        method.color === 'purple' &&
+                                            'bg-gradient-to-br from-purple-500 to-indigo-500 shadow-purple-500/30'
+                                    )}
+                                >
+                                    {method.icon}
+                                </div>
+                                <div>
+                                    <p className="text-xs text-[var(--text-secondary)] uppercase tracking-wide font-medium">
+                                        {method.label}
+                                    </p>
+                                    <p className="text-xl font-bold text-[var(--text-primary)]">
+                                        {formatCurrency(method.total)}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                                <span>{method.count} transactions</span>
+                                <span>•</span>
+                                <span>
+                                    {totalPayments > 0
+                                        ? ((method.total / totalPayments) * 100).toFixed(0)
+                                        : 0}
+                                    %
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-3">
@@ -319,11 +336,16 @@ export const DigitalCashPage: React.FC = () => {
 
             {/* Payment List */}
             <div className="grid gap-3">
-                {filteredPayments.length === 0 ? (
-                    <Card className="text-center py-12">
-                        <Wallet className="w-12 h-12 mx-auto text-[var(--text-secondary)] mb-3" />
-                        <p className="text-[var(--text-secondary)]">No digital payments found</p>
-                    </Card>
+                {isLoading ? (
+                    <SkeletonList count={5} />
+                ) : filteredPayments.length === 0 ? (
+                    <EmptyState
+                        icon={<Wallet />}
+                        title="No Digital Payments"
+                        description="Monitor your JazzCash, EasyPaisa, and POS transactions here. Select a different date range or method if you don't see what you're looking for."
+                        actionLabel="Add Payment"
+                        onAction={() => setIsAddModalOpen(true)}
+                    />
                 ) : (
                     filteredPayments.map(payment => {
                         const methodConfig = getMethodConfig(payment.method);

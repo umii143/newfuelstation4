@@ -1,4 +1,5 @@
 import { authApi, type AuthResponse, getAuthToken, removeAuthToken } from '@/api';
+import { normalizeBusinessUnit, toBusinessId, type BusinessId, type BusinessUnit } from '@/lib/businessScope';
 import { loginWithGoogle as firebaseLoginWithGoogle } from '@/lib/firebase';
 import type { User as StaffUser } from '@/types';
 import { create } from 'zustand';
@@ -47,7 +48,8 @@ interface Station {
 interface Settings {
     theme: string;
     language: string;
-    businessUnit: string;
+    businessUnit: BusinessUnit;
+    businessId?: BusinessId;
     // Lube Settings Extensions
     taxConfig?: {
         enabled: boolean;
@@ -121,6 +123,7 @@ interface AuthState {
 
     // Settings methods
     updateSettings: (settings: Partial<Settings>) => void;
+    switchBusinessUnit: (businessUnit: BusinessUnit) => void;
     resetSettings: () => void;
     setCurrentStation: (station: Station) => void;
     
@@ -132,6 +135,7 @@ const defaultSettings: Settings = {
     theme: 'glassy-white',
     language: 'en',
     businessUnit: 'LUBE',
+    businessId: 'lube',
     taxConfig: {
         enabled: true,
         mode: 'EXCLUSIVE',
@@ -223,11 +227,12 @@ export const useAuthStore = create<AuthState>()(
                         businessType: foundUser.businessUnit,
                         isActive: true,
                     },
-                    settings: {
-                        theme: foundUser.theme,
-                        language: foundUser.language,
-                        businessUnit: foundUser.businessUnit,
-                    },
+                        settings: {
+                            theme: foundUser.theme,
+                            language: foundUser.language,
+                            businessUnit: normalizeBusinessUnit(foundUser.businessUnit),
+                            businessId: toBusinessId(foundUser.businessUnit),
+                        },
                     isAuthenticated: true,
                     error: null,
                     failedAttempts: 0,
@@ -471,8 +476,33 @@ export const useAuthStore = create<AuthState>()(
 
             // Update settings
             updateSettings: (newSettings: Partial<Settings>) => {
+                const nextBusinessUnit = newSettings.businessUnit
+                    ? normalizeBusinessUnit(newSettings.businessUnit)
+                    : undefined;
+
                 set(state => ({
-                    settings: { ...state.settings, ...newSettings },
+                    settings: {
+                        ...state.settings,
+                        ...newSettings,
+                        ...(nextBusinessUnit
+                            ? {
+                                  businessUnit: nextBusinessUnit,
+                                  businessId: toBusinessId(nextBusinessUnit),
+                              }
+                            : {}),
+                    },
+                }));
+            },
+
+            switchBusinessUnit: (businessUnit: BusinessUnit) => {
+                const nextBusinessUnit = normalizeBusinessUnit(businessUnit);
+
+                set(state => ({
+                    settings: {
+                        ...state.settings,
+                        businessUnit: nextBusinessUnit,
+                        businessId: toBusinessId(nextBusinessUnit),
+                    },
                 }));
             },
 

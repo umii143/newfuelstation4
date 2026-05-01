@@ -4,6 +4,8 @@ import { persist } from 'zustand/middleware';
 import { getStationId } from '@/lib/authHelpers';
 import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
+import { useSettingsStore } from './authStore';
+import { stampBusinessScope } from '@/lib/businessScope';
 // ============================================
 // DISCOUNT MANAGEMENT STORE
 // Handles discount entries, approvals, and analytics
@@ -19,7 +21,7 @@ interface DiscountState {
 
     // Actions
     addDiscount: (
-        entry: Omit<DiscountEntry, 'id' | 'timestamp' | 'approvalStatus'>
+        entry: Omit<DiscountEntry, 'id' | 'timestamp' | 'approvalStatus' | 'businessUnit'>
     ) => DiscountEntry;
     approveDiscount: (
         id: string,
@@ -86,12 +88,14 @@ export const useDiscountStore = create<DiscountState>()(
                 // Determine if auto-approve or needs approval
                 const needsApproval = entry.amount > discountLimits.requireApprovalAbove;
 
-                const newEntry: DiscountEntry = {
+                const { settings } = useSettingsStore.getState();
+                const newEntry = stampBusinessScope<DiscountEntry>({
                     ...entry,
                     id,
+                    businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     timestamp: new Date().toISOString(),
                     approvalStatus: needsApproval ? 'PENDING' : 'APPROVED',
-                };
+                });
 
                 set(state => ({
                     discountEntries: [...state.discountEntries, newEntry],
@@ -164,41 +168,63 @@ export const useDiscountStore = create<DiscountState>()(
             },
 
             getDiscountsByShift: shiftId => {
-                return get().discountEntries.filter(e => e.shiftId === shiftId);
+                const { settings } = useSettingsStore.getState();
+                return get().discountEntries.filter(
+                    e => e.shiftId === shiftId && e.businessUnit === settings.businessUnit
+                );
             },
 
             getDiscountsByCustomer: customerId => {
-                return get().discountEntries.filter(e => e.customerId === customerId);
+                const { settings } = useSettingsStore.getState();
+                return get().discountEntries.filter(
+                    e => e.customerId === customerId && e.businessUnit === settings.businessUnit
+                );
             },
 
             getDiscountsByDateRange: (startDate, endDate) => {
                 const startTime = new Date(startDate).getTime();
                 const endTime = new Date(endDate).getTime() + 86400000; // Include end date
+                const { settings } = useSettingsStore.getState();
                 return get().discountEntries.filter(e => {
                     const time = new Date(e.timestamp).getTime();
-                    return time >= startTime && time < endTime;
+                    return (
+                        time >= startTime &&
+                        time < endTime &&
+                        e.businessUnit === settings.businessUnit
+                    );
                 });
             },
 
             getPendingDiscounts: () => {
-                return get().discountEntries.filter(e => e.approvalStatus === 'PENDING');
+                const { settings } = useSettingsStore.getState();
+                return get().discountEntries.filter(
+                    e => e.approvalStatus === 'PENDING' && e.businessUnit === settings.businessUnit
+                );
             },
 
             getTodayTotal: () => {
+                const { settings } = useSettingsStore.getState();
                 const today = new Date().toISOString().split('T')[0];
                 return get()
                     .discountEntries.filter(
-                        e => e.timestamp.startsWith(today) && e.approvalStatus === 'APPROVED'
+                        e =>
+                            e.timestamp.startsWith(today) &&
+                            e.approvalStatus === 'APPROVED' &&
+                            e.businessUnit === settings.businessUnit
                     )
                     .reduce((sum, e) => sum + e.amount, 0);
             },
 
             getMonthlyTotal: () => {
+                const { settings } = useSettingsStore.getState();
                 const now = new Date();
                 const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
                 return get()
                     .discountEntries.filter(
-                        e => e.timestamp >= monthStart && e.approvalStatus === 'APPROVED'
+                        e =>
+                            e.timestamp >= monthStart &&
+                            e.approvalStatus === 'APPROVED' &&
+                            e.businessUnit === settings.businessUnit
                     )
                     .reduce((sum, e) => sum + e.amount, 0);
             },
@@ -236,7 +262,10 @@ export const useDiscountStore = create<DiscountState>()(
             },
 
             getDiscountAnalytics: () => {
-                const entries = get().discountEntries;
+                const { settings } = useSettingsStore.getState();
+                const entries = get().discountEntries.filter(
+                    e => e.businessUnit === settings.businessUnit
+                );
                 const now = new Date();
                 const today = now.toISOString().split('T')[0];
                 const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString();

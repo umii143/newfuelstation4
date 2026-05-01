@@ -651,7 +651,8 @@ const TankManagementTab: React.FC = () => {
 
 const NozzleConfigurationTab: React.FC = () => {
     const { nozzleConfigs, tankConfigs, updateNozzle, addNozzle, resetMeter } = useConfigStore();
-    const { users: staff } = useStaffStore();
+    const { getActiveStaff } = useStaffStore();
+    const staff = getActiveStaff();
     const [showAddForm, setShowAddForm] = useState(false);
     const [showResetModal, setShowResetModal] = useState<string | null>(null);
 

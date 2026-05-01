@@ -21,4 +21,14 @@ export default defineConfig({
     port: 5173,
     open: true,
   },
+  build: {
+    chunkSizeWarningLimit: 1500, // Supresses the 500kB chunk warning
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom', 'framer-motion', 'recharts', 'firebase/app', 'firebase/firestore', 'firebase/auth'],
+        },
+      },
+    },
+  },
 })

@@ -41,10 +41,6 @@ export const useFirestoreInit = () => {
             return onSnapshot(
                 q,
                 snapshot => {
-                    if (snapshot.metadata.hasPendingWrites) {
-                        return;
-                    }
-
                     const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     storeUpdater(filterByBusinessScope(docs, activeBusiness, fallbackUnit));
                 },

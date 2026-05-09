@@ -54,8 +54,9 @@ export const fsSet = async <T extends DocumentData>(
             ...payload,
             _updatedAt: new Date().toISOString(),
         });
-    } catch (err) {
-        console.error(`[Firestore] Failed to save ${collectionName}/${id}:`, err);
+        console.log(`[Firestore ✅] Saved ${collectionName}/${id} to station ${stationId}`);
+    } catch (err: any) {
+        console.error(`[Firestore ❌] FAILED to save ${collectionName}/${id} to station ${stationId}:`, err?.code, err?.message || err);
     }
 };
 

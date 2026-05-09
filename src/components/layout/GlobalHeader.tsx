@@ -11,7 +11,6 @@ import { LiveTicker } from '@/components/ui/LiveTicker';
 
 export function GlobalHeader() {
     const [showNotifications, setShowNotifications] = useState(false);
-    const [currentTime, setCurrentTime] = useState('');
     const [isScrolled, setIsScrolled] = useState(false);
     const { user: currentUser, authMethod } = useAuthStore();
     const { settings, switchBusinessUnit } = useSettingsStore();
@@ -26,21 +25,6 @@ export function GlobalHeader() {
         const handler = () => setIsScrolled(main.scrollTop > 8);
         main.addEventListener('scroll', handler, { passive: true });
         return () => main.removeEventListener('scroll', handler);
-    }, []);
-
-    useEffect(() => {
-        const updateTime = () => {
-            setCurrentTime(
-                new Date().toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                })
-            );
-        };
-
-        updateTime();
-        const interval = setInterval(updateTime, 60000);
-        return () => clearInterval(interval);
     }, []);
 
     const notifications = useMemo(() => {
@@ -112,7 +96,7 @@ export function GlobalHeader() {
                 )}
             >
                 <div className="flex h-full items-center justify-between gap-4 pl-14 pr-4 lg:px-6">
-                    <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0 overflow-x-auto no-scrollbar">
+                    <div className="hidden lg:flex items-center gap-2 md:gap-3 flex-1 min-w-0 overflow-x-auto no-scrollbar">
                         <div className="hidden lg:flex flex-col">
                             <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
                                 Active Business
@@ -348,6 +332,37 @@ export function GlobalHeader() {
                     </div>
                 </div>
             </header>
+
+            {/* ── Mobile Business Switcher Strip ─────────────────────── */}
+            <div className="flex lg:hidden w-full border-b border-slate-200/60 dark:border-slate-800/60 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md">
+                <div className="flex w-full">
+                    {businessUnits.map(business => {
+                        const isActive = settings.businessUnit === business.id;
+                        const colors: Record<string, string> = {
+                            FUEL: 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400',
+                            CNG: 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+                            LUBE: 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400',
+                        };
+                        const icons: Record<string, string> = { FUEL: '⛽', CNG: '🔋', LUBE: '🛢️' };
+                        return (
+                            <button
+                                key={business.id}
+                                onClick={() => handleSwitchBusiness(business.id)}
+                                className={cn(
+                                    'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-all border-b-[3px] active:scale-95',
+                                    isActive
+                                        ? colors[business.id]
+                                        : 'border-transparent text-slate-400 dark:text-slate-500 bg-transparent'
+                                )}
+                                style={{ minHeight: '44px' }}
+                            >
+                                <span className="text-base">{icons[business.id]}</span>
+                                <span>{business.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
         </div>
     );
 }

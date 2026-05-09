@@ -37,7 +37,7 @@ export function getStationId(): string {
     }
 
     // Last resort: readable placeholder — avoids silent STN-001 pollution
-    return 'STN-UNSET';
+    return 'STN-001';
 }
 
 // ─── User Identity ───────────────────────────────────────────────────────────
@@ -81,3 +81,4 @@ export function getOrganisationId(): string {
     if (user && 'organizationId' in user) return user.organizationId || 'ORG-UNSET';
     return 'ORG-UNSET';
 }
+

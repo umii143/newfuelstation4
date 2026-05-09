@@ -190,7 +190,7 @@ export const useAuthStore = create<AuthState>()(
                         language: 'en',
                         businessUnit: 'FUEL',
                         organizationId: 'default-org',
-                        stationId: 'default-station',
+                        stationId: 'STN-001',
                         status: 'ACTIVE',
                         pin: '9999'
                     } as any;
@@ -457,6 +457,7 @@ export const useAuthStore = create<AuthState>()(
                                 theme: 'glassy-white',
                                 language: 'en',
                                 businessUnit: localStorage.getItem('businessUnit') || 'FUEL',
+                                stationId: 'STN-001',
                             } as LocalUser,
                             isLoading: false,
                         });
@@ -554,4 +555,5 @@ export const useAuthStore = create<AuthState>()(
 
 // Backward compatibility export
 export const useSettingsStore = useAuthStore;
+
 

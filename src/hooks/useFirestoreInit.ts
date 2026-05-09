@@ -15,7 +15,7 @@ import { useCNGStore } from '@/stores/cngStore';
 import { useProfitStore } from '@/stores/profitStore';
 import { useDiscountStore } from '@/stores/discountStore';
 import { COLLECTIONS, db } from '@/lib/db';
-import { clearBusinessScopedStores, hydrateBusinessScopedStores, type FirestoreBusinessData } from '@/lib/businessStoreSync';
+import { hydrateBusinessScopedStores, type FirestoreBusinessData } from '@/lib/businessStoreSync';
 import { filterByBusinessScope, normalizeBusinessUnit, type BusinessUnit } from '@/lib/businessScope';
 import { loadAllCollections } from '@/services/firestoreService';
 
@@ -56,7 +56,6 @@ export const useFirestoreInit = () => {
 
         const initFirestore = async () => {
             if (!user?.stationId) {
-                clearBusinessScopedStores();
                 setIsLoading(false);
                 return;
             }
@@ -64,8 +63,6 @@ export const useFirestoreInit = () => {
             try {
                 setIsLoading(true);
                 setError(null);
-                clearBusinessScopedStores();
-
                 const stationId = user.stationId;
                 console.log(
                     `[Firestore] Hydrating station ${stationId} for ${activeBusiness}...`
@@ -211,3 +208,6 @@ export const useFirestoreInit = () => {
 
     return { isLoading, error };
 };
+
+
+

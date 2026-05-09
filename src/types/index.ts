@@ -63,6 +63,13 @@ export interface User {
 export interface Station {
     stationId: string;
     name: string;
+    location?: {
+        lat: number;
+        lng: number;
+    };
+    ograLicenceNumber?: string;
+    owner?: string;
+    establishmentDate?: string;
     address: {
         street: string;
         city: string;
@@ -91,6 +98,7 @@ export interface Tank {
     name: string;
     fuelType: FuelType;
     capacity: number; // Liters
+    safeFillLevel?: number; // PRD requirement
     currentLevel: number;
     costPrice: number;
     salePrice: number;
@@ -105,6 +113,10 @@ export interface Nozzle {
     tankId: string;
     name: string;
     number: number;
+    fuelType?: FuelType; // PRD Requirement
+    meterReadingBaseline?: number; // PRD Requirement
+    installationDate?: string; // PRD Requirement
+    calibrationCertificate?: string; // PRD Requirement
     currentReading: number;
     testVolume: number; // Default test volume per shift
     status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
@@ -145,6 +157,7 @@ export interface Shift {
     startTime: string;
     endTime?: string;
     openingReadings: OpeningReading[];
+    tankReadings?: TankReading[]; // New PRD requirement for manual dip stick
     nozzleSales: NozzleSale[];
     totalLitersSold: number;
     totalRevenue: number;
@@ -197,6 +210,15 @@ export interface OpeningReading {
     reading: number;
     timestamp: string;
     photoUrl?: string;
+}
+
+// Tank Dip-Stick Reading (Step 2 - Manual Entry)
+export interface TankReading {
+    tankId: string;
+    tankName: string;
+    fuelType: FuelType;
+    openingDip: number; // manual liters
+    closingDip: number; // manual liters
 }
 
 // ============================================
@@ -265,13 +287,12 @@ export interface Transaction {
     syncId?: string;
 }
 
-// Nozzle Reading - for Steps 2 & 3
 export interface NozzleReading {
     nozzleId: string;
     nozzleName: string;
     fuelType: FuelType;
-    opening: number;
-    closing: number;
+    opening: number; // Manual entry
+    closing: number; // Manual entry
     test: number;
     rate: number;
     costPrice: number;

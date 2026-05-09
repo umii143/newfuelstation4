@@ -36,6 +36,8 @@ const FuelReportsPage = React.lazy(() => import('@/pages/fuel/FuelReports').then
 const ShiftsPage = React.lazy(() => import('@/pages/fuel/Shifts'));
 const DipManagementPage = React.lazy(() => import('@/pages/fuel/DipManagement').then(m => ({ default: m.DipManagement })));
 const TanksPage = React.lazy(() => import('@/pages/fuel/Tanks').then(m => ({ default: m.TanksPage })));
+const StationMasterPage = React.lazy(() => import('@/pages/station/StationMaster'));
+const ShiftDashboardPage = React.lazy(() => import('@/pages/shift/ShiftDashboard'));
 const CashBankPage = React.lazy(() => import('@/pages/lube/CashBank'));
 const CreditsPage = React.lazy(() => import('@/pages/lube/Credits').then(m => ({ default: m.CreditsPage })));
 const LubeDashboard = React.lazy(() => import('@/pages/lube/Dashboard').then(m => ({ default: m.LubeDashboard })));
@@ -234,6 +236,10 @@ const App: React.FC = () => {
             case '/fuel':
             case '/fuel/shifts':
                 return <ShiftsPage onNavigate={navigate} />;
+            case '/fuel/shift-dashboard':
+                return <ShiftDashboardPage />;
+            case '/fuel/station-master':
+                return <StationMasterPage />;
             case '/fuel/activity':
                 return <ShiftActivityPage />;
             case '/fuel/tanks':

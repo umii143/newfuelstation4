@@ -29,6 +29,8 @@ export const fuelNavItems: NavItem[] = [
         path: '/fuel',
         icon: Fuel,
         subItems: [
+            { label: 'Shift Control', path: '/fuel/shift-dashboard' }, // New manual shift flow
+            { label: 'Station Master', path: '/fuel/station-master' },
             { label: 'Shift Wizard', path: '/fuel/shifts' }, // Main entry point
             { label: 'Shift Logs', path: '/fuel/activity' }, // Historical view
             { label: 'Tank Levels', path: '/fuel/tanks' },

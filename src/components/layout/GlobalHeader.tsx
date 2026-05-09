@@ -112,8 +112,8 @@ export function GlobalHeader() {
                 )}
             >
                 <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
-                    <div className="hidden items-center gap-3 lg:flex">
-                        <div className="flex flex-col">
+                    <div className="flex items-center gap-2 md:gap-3 flex-1 overflow-x-auto no-scrollbar">
+                        <div className="hidden lg:flex flex-col">
                             <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
                                 Active Business
                             </span>
@@ -122,7 +122,7 @@ export function GlobalHeader() {
                             </span>
                         </div>
 
-                        <div className="glass-panel flex items-center rounded-xl p-1 bg-slate-100/50 dark:bg-slate-800/50">
+                        <div className="glass-panel flex items-center rounded-xl p-1 bg-slate-100/50 dark:bg-slate-800/50 shrink-0">
                             {businessUnits.map(business => {
                                 const isActive = settings.businessUnit === business.id;
 
@@ -170,15 +170,7 @@ export function GlobalHeader() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 lg:hidden">
-                        <span className="text-base font-bold tracking-tight text-slate-800 dark:text-white bloomberg:text-[#F5A623]">
-                            {activeBusiness.label}
-                        </span>
-                        <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
-                        <span className="text-sm font-medium text-slate-500 bloomberg:text-[#888]">
-                            {currentTime}
-                        </span>
-                    </div>
+                    
 
                     <div className="ml-auto flex items-center gap-3 sm:gap-4">
                         <button
@@ -359,3 +351,4 @@ export function GlobalHeader() {
         </div>
     );
 }
+

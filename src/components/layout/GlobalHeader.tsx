@@ -111,7 +111,7 @@ export function GlobalHeader() {
                         : 'bg-white/50 backdrop-blur-md border-transparent dark:bg-slate-950/50 bloomberg:bg-[#000000] bloomberg:border-transparent'
                 )}
             >
-                <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
+                <div className="flex h-full items-center justify-between gap-4 pl-14 pr-4 lg:px-6">
                     <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0 overflow-x-auto no-scrollbar">
                         <div className="hidden lg:flex flex-col">
                             <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
@@ -351,5 +351,6 @@ export function GlobalHeader() {
         </div>
     );
 }
+
 
 

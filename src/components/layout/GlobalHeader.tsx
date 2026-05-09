@@ -112,7 +112,7 @@ export function GlobalHeader() {
                 )}
             >
                 <div className="flex h-full items-center justify-between gap-4 px-4 lg:px-6">
-                    <div className="flex items-center gap-2 md:gap-3 flex-1 overflow-x-auto no-scrollbar">
+                    <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0 overflow-x-auto no-scrollbar">
                         <div className="hidden lg:flex flex-col">
                             <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
                                 Active Business
@@ -172,7 +172,7 @@ export function GlobalHeader() {
 
                     
 
-                    <div className="ml-auto flex items-center gap-3 sm:gap-4">
+                    <div className="ml-auto flex items-center gap-3 sm:gap-4 shrink-0">
                         <button
                             onClick={() => document.dispatchEvent(new CustomEvent('open-search'))}
                             className="glass-input hidden w-48 items-center gap-3 rounded-lg px-3 py-1.5 text-slate-400 transition-colors hover:text-slate-600 sm:flex lg:w-64 dark:hover:text-slate-300"
@@ -351,4 +351,5 @@ export function GlobalHeader() {
         </div>
     );
 }
+
 

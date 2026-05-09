@@ -157,11 +157,14 @@ const App: React.FC = () => {
                             });
                         }
                     } else {
-                        // No Firebase user - clear auth state
-                        useAuthStore.setState({
-                            isAuthenticated: false,
-                            user: null,
-                        });
+                        // No Firebase user - only clear auth state if we are tracking a GOOGLE auth session
+                        const authMethod = useAuthStore.getState().authMethod;
+                        if (authMethod === 'GOOGLE' || !authMethod) {
+                            useAuthStore.setState({
+                                isAuthenticated: false,
+                                user: null,
+                            });
+                        }
                     }
                     setAuthInitialized(true);
                 });

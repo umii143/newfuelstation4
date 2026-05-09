@@ -11,6 +11,7 @@ import type {
     SystemAlert,
     TankConfiguration,
     TankMaintenanceRecord,
+    UserRole,
 } from '@/types';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -96,24 +97,63 @@ interface ConfigState {
 export const useConfigStore = create<ConfigState>()(
     persist(
         (set, get) => ({
-            // Initial State
-            stationConfig: null,
+            // Initial State — fully populated defaults so settings pages always render
+            stationConfig: {
+                stationId: 'STN-DEFAULT',
+                name: 'Motorway Oil Station',
+                address: {
+                    street: '123 Main Highway',
+                    city: 'Metropolis',
+                    state: 'Capital Region',
+                    country: 'Pakistan',
+                    postalCode: '00000',
+                },
+                settings: {
+                    currency: 'PKR',
+                    timezone: 'Asia/Karachi',
+                    theme: 'system',
+                    language: 'en',
+                    taxRate: 0,
+                },
+                createdAt: new Date().toISOString(),
+            } as Station,
             tankConfigs: [],
             nozzleConfigs: [],
-            rateConfigs: [],
-            alertConfigs: [],
+            rateConfigs: [
+                { fuelType: 'PETROL_92' as FuelType, currentRate: 0, previousRate: 0, effectiveFrom: new Date().toISOString(), lastChangedBy: 'SYSTEM', lastChangedAt: new Date().toISOString(), rateHistory: [] },
+                { fuelType: 'PETROL_95' as FuelType, currentRate: 0, previousRate: 0, effectiveFrom: new Date().toISOString(), lastChangedBy: 'SYSTEM', lastChangedAt: new Date().toISOString(), rateHistory: [] },
+                { fuelType: 'DIESEL' as FuelType, currentRate: 0, previousRate: 0, effectiveFrom: new Date().toISOString(), lastChangedBy: 'SYSTEM', lastChangedAt: new Date().toISOString(), rateHistory: [] },
+                { fuelType: 'PREMIUM_DIESEL' as FuelType, currentRate: 0, previousRate: 0, effectiveFrom: new Date().toISOString(), lastChangedBy: 'SYSTEM', lastChangedAt: new Date().toISOString(), rateHistory: [] },
+                { fuelType: 'CNG' as FuelType, currentRate: 0, previousRate: 0, effectiveFrom: new Date().toISOString(), lastChangedBy: 'SYSTEM', lastChangedAt: new Date().toISOString(), rateHistory: [] },
+            ] as RateConfiguration[],
+            alertConfigs: [
+                { id: 'ALERT-1', stationId: 'STN-DEFAULT', type: 'LOW_INVENTORY' as AlertType, isEnabled: true, threshold: 25, notifyRoles: ['OWNER', 'MANAGER'] as UserRole[], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+                { id: 'ALERT-2', stationId: 'STN-DEFAULT', type: 'RATE_CHANGE' as AlertType, isEnabled: true, threshold: 0, notifyRoles: ['OWNER', 'MANAGER'] as UserRole[], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+                { id: 'ALERT-3', stationId: 'STN-DEFAULT', type: 'MAINTENANCE_DUE' as AlertType, isEnabled: true, threshold: 0, notifyRoles: ['OWNER', 'MANAGER'] as UserRole[], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+                { id: 'ALERT-4', stationId: 'STN-DEFAULT', type: 'CASH_VARIANCE' as AlertType, isEnabled: true, threshold: 5, notifyRoles: ['OWNER', 'MANAGER', 'CASHIER'] as UserRole[], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+                { id: 'ALERT-5', stationId: 'STN-DEFAULT', type: 'CREDIT_LIMIT_EXCEEDED' as AlertType, isEnabled: true, threshold: 0, notifyRoles: ['OWNER', 'MANAGER'] as UserRole[], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+                { id: 'ALERT-6', stationId: 'STN-DEFAULT', type: 'SHIFT_VARIANCE_HIGH' as AlertType, isEnabled: true, threshold: 2, notifyRoles: ['OWNER', 'MANAGER'] as UserRole[], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+            ] as AlertConfiguration[],
             systemAlerts: [],
             rateChangeHistory: [],
             isLoading: false,
             error: null,
 
-            // Station Actions
+            // Station Actions — creates config from scratch if null
             updateStationConfig: updates => {
-                set(state => ({
-                    stationConfig: state.stationConfig
-                        ? { ...state.stationConfig, ...updates }
-                        : null,
-                }));
+                set(state => {
+                    const defaultConfig: Station = {
+                        stationId: 'STN-DEFAULT',
+                        name: 'Motorway Oil Station',
+                        address: { street: '', city: '', state: '', country: 'Pakistan', postalCode: '' },
+                        settings: { currency: 'PKR', timezone: 'Asia/Karachi', theme: 'system', language: 'en', taxRate: 0 },
+                        createdAt: new Date().toISOString(),
+                    };
+
+                    return {
+                        stationConfig: { ...(state.stationConfig || defaultConfig), ...updates },
+                    };
+                });
             },
 
             // Tank Actions
@@ -567,6 +607,23 @@ export const useConfigStore = create<ConfigState>()(
                 systemAlerts: state.systemAlerts.slice(0, 100), // Keep last 100 alerts
                 rateChangeHistory: state.rateChangeHistory.slice(-50), // Keep last 50 rate changes
             }),
+            // Migrate old localStorage where stationConfig/rateConfigs/alertConfigs were null/empty
+            merge: (persistedState: any, currentState: ConfigState) => {
+                const merged = { ...currentState, ...(persistedState || {}) };
+                // If persisted stationConfig is null, use the fresh default from currentState
+                if (!merged.stationConfig) {
+                    merged.stationConfig = currentState.stationConfig;
+                }
+                // If persisted rateConfigs is empty, use defaults
+                if (!merged.rateConfigs || merged.rateConfigs.length === 0) {
+                    merged.rateConfigs = currentState.rateConfigs;
+                }
+                // If persisted alertConfigs is empty, use defaults
+                if (!merged.alertConfigs || merged.alertConfigs.length === 0) {
+                    merged.alertConfigs = currentState.alertConfigs;
+                }
+                return merged;
+            },
         }
     )
 );

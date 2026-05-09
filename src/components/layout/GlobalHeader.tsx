@@ -122,9 +122,19 @@ export function GlobalHeader() {
                             </span>
                         </div>
 
-                        <div className="glass-panel flex items-center rounded-xl p-1">
+                        <div className="glass-panel flex items-center rounded-xl p-1 bg-slate-100/50 dark:bg-slate-800/50">
                             {businessUnits.map(business => {
                                 const isActive = settings.businessUnit === business.id;
+
+                                // Define dynamic colors based on business unit
+                                const getActiveColor = (id: string) => {
+                                    switch(id) {
+                                        case 'FUEL': return 'bg-blue-600 shadow-blue-500/30';
+                                        case 'CNG': return 'bg-emerald-500 shadow-emerald-500/30';
+                                        case 'LUBE': return 'bg-amber-500 shadow-amber-500/30';
+                                        default: return 'bg-white dark:bg-slate-800';
+                                    }
+                                };
 
                                 return (
                                     <button
@@ -133,14 +143,17 @@ export function GlobalHeader() {
                                         className={cn(
                                             'relative flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors outline-none',
                                             isActive
-                                                ? 'text-slate-900 dark:text-white bloomberg:text-black'
+                                                ? 'text-white bloomberg:text-black'
                                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bloomberg:text-[#888]'
                                         )}
                                     >
                                         {isActive && (
                                             <motion.div
                                                 layoutId="headerBuTab"
-                                                className="absolute inset-0 rounded-lg bg-white shadow-sm dark:bg-slate-800 bloomberg:bg-[#F5A623]"
+                                                className={cn(
+                                                    'absolute inset-0 rounded-lg shadow-sm',
+                                                    getActiveColor(business.id)
+                                                )}
                                                 transition={{
                                                     type: 'spring',
                                                     stiffness: 400,
@@ -148,7 +161,7 @@ export function GlobalHeader() {
                                                 }}
                                             />
                                         )}
-                                        <span className="relative z-10 tracking-tight">
+                                        <span className="relative z-10 tracking-tight drop-shadow-sm">
                                             {business.label}
                                         </span>
                                     </button>

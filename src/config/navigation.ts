@@ -32,6 +32,7 @@ export const fuelNavItems: NavItem[] = [
             { label: 'Shift Wizard', path: '/fuel/shifts' }, // Main entry point
             { label: 'Shift Logs', path: '/fuel/activity' }, // Historical view
             { label: 'Tank Levels', path: '/fuel/tanks' },
+            { label: 'Dip Management', path: '/fuel/dips' },
             { label: 'Price Management', path: '/fuel/pricing' },
             { label: 'Purchase Orders', path: '/fuel/orders' },
         ],
@@ -47,6 +48,7 @@ export const fuelNavItems: NavItem[] = [
             { label: 'Customer Accounts', path: '/customers' }, // Renamed for clarity
             { label: 'Supplier Accounts', path: '/suppliers' },
             { label: 'Reconciliation', path: '/financials/reconciliation' },
+            { label: 'Financial Intelligence', path: '/financials/intelligence' },
         ],
     },
     {
@@ -99,6 +101,7 @@ export const cngNavItems: NavItem[] = [
             { label: 'Customer Accounts', path: '/customers' },
             { label: 'Supplier Accounts', path: '/suppliers' },
             { label: 'Reconciliation', path: '/financials/reconciliation' },
+            { label: 'Financial Intelligence', path: '/financials/intelligence' },
         ],
     },
     {
@@ -172,3 +175,5 @@ export const lubeNavItems: NavItem[] = [
     },
     { label: 'Settings', path: '/lube/settings', icon: Settings },
 ];
+
+

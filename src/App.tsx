@@ -27,12 +27,14 @@ const CustomersPage = React.lazy(() => import('@/pages/financials/Customers').th
 const DigitalCashPage = React.lazy(() => import('@/pages/financials/DigitalCash').then(m => ({ default: m.DigitalCashPage })));
 const ExpensesPage = React.lazy(() => import('@/pages/financials/Expenses').then(m => ({ default: m.ExpensesPage })));
 const SuppliersPage = React.lazy(() => import('@/pages/financials/Suppliers').then(m => ({ default: m.SuppliersPage })));
+const FinancialIntelligencePage = React.lazy(() => import('@/pages/financials/FinancialIntelligence').then(m => ({ default: m.FinancialIntelligence })));
 const FuelDashboard = React.lazy(() => import('@/pages/fuel/FuelDashboard').then(m => ({ default: m.FuelDashboard })));
 const PriceManagement = React.lazy(() => import('@/pages/fuel/PriceManagement'));
 const PurchaseOrdersPage = React.lazy(() => import('@/pages/fuel/PurchaseOrders').then(m => ({ default: m.PurchaseOrdersPage })));
 const ShiftActivityPage = React.lazy(() => import('@/pages/fuel/ShiftActivity').then(m => ({ default: m.ShiftActivityPage })));
 const FuelReportsPage = React.lazy(() => import('@/pages/fuel/FuelReports').then(m => ({ default: m.FuelReportsPage })));
 const ShiftsPage = React.lazy(() => import('@/pages/fuel/Shifts'));
+const DipManagementPage = React.lazy(() => import('@/pages/fuel/DipManagement').then(m => ({ default: m.DipManagement })));
 const TanksPage = React.lazy(() => import('@/pages/fuel/Tanks').then(m => ({ default: m.TanksPage })));
 const CashBankPage = React.lazy(() => import('@/pages/lube/CashBank'));
 const CreditsPage = React.lazy(() => import('@/pages/lube/Credits').then(m => ({ default: m.CreditsPage })));
@@ -236,6 +238,8 @@ const App: React.FC = () => {
                 return <ShiftActivityPage />;
             case '/fuel/tanks':
                 return <TanksPage />;
+            case '/fuel/dips':
+                return <DipManagementPage />;
             case '/fuel/orders':
                 return <PurchaseOrdersPage />;
             case '/fuel/pricing':
@@ -306,6 +310,10 @@ const App: React.FC = () => {
                 return <CashReconciliation />;
             case '/financials/digital-cash':
                 return <DigitalCashPage />;
+            case '/financials/intelligence':
+                return <FinancialIntelligencePage />;
+            case '/financials/intelligence':
+                return <FinancialIntelligencePage />;
 
             // Staff Management
             case '/staff':
@@ -364,3 +372,6 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+
+

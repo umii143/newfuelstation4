@@ -32,6 +32,8 @@ import {
 import { getStationId } from '@/lib/authHelpers';
 import React, { useState } from 'react';
 import { DatabaseBackupTab } from '@/components/settings/DatabaseBackupTab';
+import { SystemPreferencesTab } from '@/components/settings/SystemPreferencesTab';
+import { FinancialAccountsTab } from '@/components/settings/FinancialAccountsTab';
 
 // ============================================
 // HELPERS
@@ -70,24 +72,28 @@ const getCalibrationStatusColor = (status: string) => {
 // Mandatory as per specification Section 2
 // ============================================
 
-type ConfigTab = 'profile' | 'tanks' | 'nozzles' | 'rates' | 'alerts' | 'database';
+type ConfigTab = 'profile' | 'preferences' | 'tanks' | 'nozzles' | 'rates' | 'alerts' | 'database' | 'financials';
 
 export const ConfigurationSettingsPage: React.FC = () => {
     const { settings } = useSettingsStore();
     const businessUnit = settings?.businessUnit || 'FUEL';
     const [activeTab, setActiveTab] = useState<ConfigTab>('profile');
 
-    // Only show Fuel-specific tabs in FUEL mode
     const allTabs = [
         { id: 'profile' as ConfigTab, label: 'Station Profile', icon: Building, fuelOnly: false },
+        { id: 'preferences' as ConfigTab, label: 'System Preferences', icon: Settings, fuelOnly: false },
         { id: 'database' as ConfigTab, label: 'Data & Backup', icon: Database, fuelOnly: false },
-        { id: 'tanks' as ConfigTab, label: 'Tank Management', icon: Droplets, fuelOnly: true },
-        { id: 'nozzles' as ConfigTab, label: 'Nozzle Configuration', icon: Gauge, fuelOnly: true },
-        { id: 'rates' as ConfigTab, label: 'Rate Settings', icon: TrendingUp, fuelOnly: true },
+        { id: 'financials' as ConfigTab, label: 'Financial Accounts', icon: CreditCard, fuelOnly: false },
+        { id: 'tanks' as ConfigTab, label: 'Tank Management', icon: Droplets, fuelOnly: false },
+        { id: 'nozzles' as ConfigTab, label: 'Nozzle Configuration', icon: Gauge, fuelOnly: false },
+        { id: 'rates' as ConfigTab, label: 'Rate Settings', icon: TrendingUp, fuelOnly: false },
         { id: 'alerts' as ConfigTab, label: 'Alert Configuration', icon: Bell, fuelOnly: false },
     ];
 
-    const tabs = businessUnit === 'FUEL' ? allTabs : allTabs.filter(tab => !tab.fuelOnly);
+    const tabs = allTabs.filter(tab => {
+        if (businessUnit !== 'FUEL' && ['tanks', 'nozzles'].includes(tab.id)) return false;
+        return true;
+    });
 
     return (
         <div className="space-y-6">
@@ -134,7 +140,9 @@ export const ConfigurationSettingsPage: React.FC = () => {
                     transition={{ duration: 0.2 }}
                 >
                     {activeTab === 'profile' && <StationProfileTab />}
-                    {activeTab === 'database' && <DatabaseBackupTab />}
+                    {activeTab === 'preferences' && <SystemPreferencesTab />}
+                    {activeTab === 'database' && <DatabaseBackupTab />} 
+                    {activeTab === 'financials' && <FinancialAccountsTab />}
                     {activeTab === 'tanks' && <TankManagementTab />}
                     {activeTab === 'nozzles' && <NozzleConfigurationTab />}
                     {activeTab === 'rates' && <RateSettingsTab />}
@@ -166,7 +174,7 @@ const StationProfileTab: React.FC = () => {
                 postalCode: formData.get('postalCode') as string,
             },
             settings: {
-                ...stationConfig!.settings,
+                ...(stationConfig?.settings || { currency: 'PKR', timezone: 'Asia/Karachi', theme: 'system', language: 'en', taxRate: 0 }),
                 taxRate: parseFloat(formData.get('taxRate') as string),
             },
         };
@@ -174,7 +182,32 @@ const StationProfileTab: React.FC = () => {
         setIsEditing(false);
     };
 
-    if (!stationConfig) return null;
+    if (!stationConfig) {
+        return (
+            <Card className="p-8 text-center rounded-[2.5rem] bg-white border border-slate-100 shadow-xl space-y-4">
+                <Building className="mx-auto text-slate-300 mb-4" size={48} />
+                <h3 className="text-xl font-bold text-slate-800">No Station Profile Found</h3>
+                <p className="text-slate-500 max-w-md mx-auto">
+                    Your station configuration has not been initialized yet.
+                </p>
+                <Button 
+                    onClick={() => {
+                        updateStationConfig({
+                            stationId: 'STN-DEFAULT',
+                            name: 'Motorway Oil Station',
+                            address: { street: '', city: '', state: '', country: 'Pakistan', postalCode: '' },
+                            settings: { currency: 'PKR', timezone: 'Asia/Karachi', theme: 'system', language: 'en', taxRate: 0 },
+                            createdAt: new Date().toISOString(),
+                        });
+                        setIsEditing(true);
+                    }}
+                    className="mt-4"
+                >
+                    Initialize Profile Now
+                </Button>
+            </Card>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -830,6 +863,52 @@ const NozzleConfigurationTab: React.FC = () => {
                     </div>
                 </form>
             </Modal>
+            {/* Stats & Add Button Header */}
+            <div className="flex items-center justify-between">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 flex-1 mr-4">
+                    <Card className="p-4 rounded-2xl bg-white border border-slate-50 shadow-lg">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Nozzles</p>
+                        <p className="text-2xl font-black text-slate-800">{nozzleConfigs.length}</p>
+                    </Card>
+                    <Card className="p-4 rounded-2xl bg-white border border-slate-50 shadow-lg">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active</p>
+                        <p className="text-2xl font-black text-emerald-500">{nozzleConfigs.filter(n => n.status === 'ACTIVE').length}</p>
+                    </Card>
+                    <Card className="p-4 rounded-2xl bg-white border border-slate-50 shadow-lg hidden sm:block">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Linked Tanks</p>
+                        <p className="text-2xl font-black text-blue-500">{tankConfigs.length}</p>
+                    </Card>
+                </div>
+                <Button
+                    onClick={() => setShowAddForm(true)}
+                    className="rounded-xl shadow-lg shadow-blue-500/20"
+                    disabled={tankConfigs.length === 0}
+                >
+                    <Plus size={18} className="mr-2" /> Add Nozzle
+                </Button>
+            </div>
+
+            {/* Empty state when no tanks exist */}
+            {tankConfigs.length === 0 && (
+                <Card className="p-8 text-center rounded-[2.5rem] bg-white border border-slate-100 shadow-xl space-y-4">
+                    <Gauge className="mx-auto text-slate-300 mb-2" size={48} />
+                    <h3 className="text-xl font-bold text-slate-800">No Tanks Configured Yet</h3>
+                    <p className="text-slate-500 max-w-md mx-auto">
+                        You need to add at least one storage tank in the <strong>Tank Management</strong> tab before you can configure nozzles. Each nozzle must be assigned to a tank.
+                    </p>
+                </Card>
+            )}
+
+            {/* Empty state when tanks exist but no nozzles */}
+            {tankConfigs.length > 0 && nozzleConfigs.length === 0 && (
+                <Card className="p-8 text-center rounded-[2.5rem] bg-white border border-slate-100 shadow-xl space-y-4">
+                    <Gauge className="mx-auto text-slate-300 mb-2" size={48} />
+                    <h3 className="text-xl font-bold text-slate-800">No Nozzles Configured</h3>
+                    <p className="text-slate-500 max-w-md mx-auto">
+                        Click the <strong>"Add Nozzle"</strong> button above to register your first dispensing nozzle and assign it to a tank.
+                    </p>
+                </Card>
+            )}
 
             {nozzlesByTank.map(({ tank, nozzles }) => (
                 <Card
@@ -1362,3 +1441,4 @@ const AlertConfigurationTab: React.FC = () => {
 };
 
 export default ConfigurationSettingsPage;
+

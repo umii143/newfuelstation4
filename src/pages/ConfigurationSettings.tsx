@@ -13,6 +13,7 @@ import {
     CheckCircle,
     Clock,
     CreditCard,
+    Database,
     Droplets,
     Edit2,
     Gauge,
@@ -30,6 +31,7 @@ import {
 } from 'lucide-react';
 import { getStationId } from '@/lib/authHelpers';
 import React, { useState } from 'react';
+import { DatabaseBackupTab } from '@/components/settings/DatabaseBackupTab';
 
 // ============================================
 // HELPERS
@@ -68,7 +70,7 @@ const getCalibrationStatusColor = (status: string) => {
 // Mandatory as per specification Section 2
 // ============================================
 
-type ConfigTab = 'profile' | 'tanks' | 'nozzles' | 'rates' | 'alerts';
+type ConfigTab = 'profile' | 'tanks' | 'nozzles' | 'rates' | 'alerts' | 'database';
 
 export const ConfigurationSettingsPage: React.FC = () => {
     const { settings } = useSettingsStore();
@@ -78,6 +80,7 @@ export const ConfigurationSettingsPage: React.FC = () => {
     // Only show Fuel-specific tabs in FUEL mode
     const allTabs = [
         { id: 'profile' as ConfigTab, label: 'Station Profile', icon: Building, fuelOnly: false },
+        { id: 'database' as ConfigTab, label: 'Data & Backup', icon: Database, fuelOnly: false },
         { id: 'tanks' as ConfigTab, label: 'Tank Management', icon: Droplets, fuelOnly: true },
         { id: 'nozzles' as ConfigTab, label: 'Nozzle Configuration', icon: Gauge, fuelOnly: true },
         { id: 'rates' as ConfigTab, label: 'Rate Settings', icon: TrendingUp, fuelOnly: true },
@@ -131,6 +134,7 @@ export const ConfigurationSettingsPage: React.FC = () => {
                     transition={{ duration: 0.2 }}
                 >
                     {activeTab === 'profile' && <StationProfileTab />}
+                    {activeTab === 'database' && <DatabaseBackupTab />}
                     {activeTab === 'tanks' && <TankManagementTab />}
                     {activeTab === 'nozzles' && <NozzleConfigurationTab />}
                     {activeTab === 'rates' && <RateSettingsTab />}

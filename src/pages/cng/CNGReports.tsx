@@ -141,7 +141,7 @@ export const CNGReportsPage: React.FC<CNGReportsProps> = ({ onNavigate }) => {
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as ReportTab)}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all relative ${
+                        className={`flex items-center gap-2 px-4 sm:px-6 py-3 rounded-xl transition-all relative min-h-[44px] ${
                             activeTab === tab.id ? 'text-white' : 'text-slate-500 dark:text-white/40 hover:text-slate-700 dark:hover:text-white/60'
                         }`}
                     >
@@ -176,7 +176,7 @@ export const CNGReportsPage: React.FC<CNGReportsProps> = ({ onNavigate }) => {
                         className="space-y-8"
                     >
                         {/* KPI Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                             {[
                                 { label: 'CNG Revenue', val: `₨ ${kpis.totalRevenue.toLocaleString()}`, icon: TrendingUp, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-500/10' },
                                 { label: 'KG Dispensed', val: `${kpis.totalKGSold.toLocaleString()} KG`, icon: Zap, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
@@ -211,7 +211,7 @@ export const CNGReportsPage: React.FC<CNGReportsProps> = ({ onNavigate }) => {
                                     <Flame className="text-orange-500 w-5 h-5" />
                                     Revenue vs Cost Trend
                                 </h3>
-                                <div className="h-[300px]">
+                                <div className="h-[200px] sm:h-[300px]">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={filteredShifts}>
                                             <defs>
@@ -286,8 +286,8 @@ export const CNGReportsPage: React.FC<CNGReportsProps> = ({ onNavigate }) => {
 
             </AnimatePresence>
 
-            {/* Quality Guard */}
-            <div className="fixed bottom-0 left-0 right-0 h-14 bg-white/80 dark:bg-[#06080f]/80 backdrop-blur-2xl border-t border-slate-200 dark:border-white/5 flex items-center justify-center px-8 z-50 transition-colors">
+            {/* Quality Guard — sits above bottom nav on mobile via .quality-bar CSS class */}
+            <div className="quality-bar bg-white/80 dark:bg-[#06080f]/80 backdrop-blur-2xl border-t border-slate-200 dark:border-white/5 transition-colors">
                 <div className="flex items-center gap-8 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-white/30">
                     <div className="flex items-center gap-2">
                         <ShieldCheck className="w-4 h-4 text-blue-500" />

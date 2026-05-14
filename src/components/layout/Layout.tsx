@@ -11,7 +11,6 @@ import { Sidebar, SidebarContext } from './Sidebar';
 import { GlobalSearchModal } from '../shared/GlobalSearchModal';
 import { MobileBottomNav } from './MobileBottomNav';
 import { fadeUp, pageTransition } from '@/animations/variants';
-import { Menu } from 'lucide-react';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -94,19 +93,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPath, onNavigat
                         )}
                     </AnimatePresence>
 
-                    {/* Mobile hamburger in header area */}
-                    <div className="lg:hidden absolute top-4 left-3 z-[95]">
-                        <motion.button
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => setIsMobileMenuOpen(true)}
-                            className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 shadow-sm"
-                        >
-                            <Menu size={20} className="text-slate-600 dark:text-slate-300" />
-                        </motion.button>
-                    </div>
-
-                    <GlobalHeader />
-                    <main className="flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 lg:px-8 lg:py-8 relative pb-24 lg:pb-8">
+                    {/* Mobile hamburger is rendered inside GlobalHeader */}
+                    <GlobalHeader onMobileMenuOpen={() => setIsMobileMenuOpen(true)} />
+                    <main className="flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 lg:px-8 lg:py-8 relative"
+                        style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
+                    >
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={currentPath}

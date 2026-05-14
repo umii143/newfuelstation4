@@ -14,12 +14,14 @@ interface PageHeaderProps {
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, actions }) => (
-    <div className="flex items-center justify-between mb-6">
-        <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">{title}</h1>
-            {subtitle && <p className="text-sm text-[var(--text-secondary)] mt-1">{subtitle}</p>}
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3">
+        <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--text-primary)] truncate">{title}</h1>
+            {subtitle && <p className="text-sm text-[var(--text-secondary)] mt-0.5 leading-snug">{subtitle}</p>}
         </div>
-        {actions && <div className="flex items-center gap-3">{actions}</div>}
+        {actions && (
+            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">{actions}</div>
+        )}
     </div>
 );
 
@@ -66,9 +68,9 @@ export const Button: React.FC<ButtonProps> = ({
     };
 
     const sizeStyles: Record<ButtonSize, string> = {
-        sm: 'px-3 py-1.5 text-xs',
-        md: 'px-5 py-2.5 text-sm',
-        lg: 'px-6 py-3 text-base',
+        sm: 'px-3 py-2 text-xs min-h-[44px]',
+        md: 'px-5 py-2.5 text-sm min-h-[44px]',
+        lg: 'px-6 py-3 text-base min-h-[44px]',
     };
 
     return (
@@ -156,7 +158,9 @@ export const Input: React.FC<InputProps> = ({ label, error, icon, className, id,
                     aria-invalid={!!error}
                     aria-describedby={error ? errorId : undefined}
                     className={clsx(
-                        'w-full px-4 py-3 rounded-lg text-sm',
+                        'w-full px-4 py-3 rounded-lg',
+                        'text-base sm:text-sm',       /* 16px on mobile prevents iOS zoom */
+                        'min-h-[44px]',               /* 44px touch target */
                         'bg-[var(--bg-surface)] border-2 border-[var(--border)]',
                         'text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]',
                         'transition-all duration-200',
@@ -235,45 +239,60 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
     if (!isOpen) return null;
 
     const sizeStyles: Record<string, string> = {
-        sm: 'max-w-sm',
-        md: 'max-w-lg',
-        lg: 'max-w-2xl',
-        xl: 'max-w-4xl',
-        full: 'max-w-[95vw] max-h-[95vh]',
+        sm: 'sm:max-w-sm',
+        md: 'sm:max-w-lg',
+        lg: 'sm:max-w-2xl',
+        xl: 'sm:max-w-4xl',
+        full: 'sm:max-w-[95vw]',
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop */}
+        /* Backdrop — bottom-sheet on mobile, centered on sm+ */
+        <div
+            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center sm:p-4"
+            onClick={onClose}
+        >
+            {/* Frosted overlay */}
             <div
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
-                onClick={onClose}
+                className="absolute inset-0 bg-black/55 backdrop-blur-sm"
                 aria-hidden="true"
             />
 
-            {/* Modal Content */}
+            {/* Modal panel */}
             <div
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={title ? 'modal-title' : undefined}
+                onClick={e => e.stopPropagation()}
                 className={clsx(
-                    'relative w-full rounded-2xl shadow-2xl animate-scale-in',
+                    /* Mobile: full-width bottom sheet */
+                    'relative w-full shadow-2xl',
                     'bg-[var(--bg-surface)] border border-[var(--border)]',
-                    'max-h-[90vh] overflow-auto',
+                    /* Mobile: rounded top corners, no border-bottom */
+                    'rounded-t-[1.25rem] sm:rounded-2xl',
+                    'border-b-0 sm:border-b',
+                    /* Scroll */
+                    'max-h-[92dvh] sm:max-h-[90dvh] overflow-y-auto',
+                    /* Desktop size cap */
                     sizeStyles[size]
                 )}
             >
+                {/* Drag handle (mobile only) */}
+                <div className="sm:hidden flex justify-center pt-3 pb-1" aria-hidden="true">
+                    <div className="w-10 h-1 rounded-full bg-[var(--border)]" />
+                </div>
+
                 {title && (
-                    <div className="flex items-center justify-between p-6 border-b border-[var(--border)]">
+                    <div className="flex items-center justify-between px-5 py-4 sm:p-6 border-b border-[var(--border)]">
                         <h2
                             id="modal-title"
-                            className="text-xl font-bold text-[var(--text-primary)]"
+                            className="text-lg sm:text-xl font-bold text-[var(--text-primary)]"
                         >
                             {title}
                         </h2>
                         <button
                             onClick={onClose}
-                            className="p-2 rounded-lg hover:bg-[var(--bg-elevated)] transition-colors"
+                            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-[var(--bg-elevated)] transition-colors"
                             aria-label="Close modal"
                         >
                             <svg
@@ -293,7 +312,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                         </button>
                     </div>
                 )}
-                <div className="p-6">{children}</div>
+                <div className="p-5 sm:p-6">{children}</div>
             </div>
         </div>
     );

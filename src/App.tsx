@@ -55,6 +55,11 @@ const PerformancePage = React.lazy(() => import('@/pages/staff/Performance').the
 const StaffAccountsPage = React.lazy(() => import('@/pages/staff/StaffAccounts'));
 const StaffManagerPage = React.lazy(() => import('@/pages/staff/StaffManager'));
 
+const OwnerDashboardPage = React.lazy(() => import('@/pages/owner/OwnerDashboard').then(m => ({ default: m.OwnerDashboard })));
+const OwnerStockManagement = React.lazy(() => import('@/pages/owner/StockManagement').then(m => ({ default: m.StockManagement })));
+const OwnerFraudAlerts = React.lazy(() => import('@/pages/owner/FraudAlerts').then(m => ({ default: m.FraudAlerts })));
+const StationStockReceipt = React.lazy(() => import('@/pages/station/StockReceipt').then(m => ({ default: m.StockReceipt })));
+
 const App: React.FC = () => {
     const { isAuthenticated, checkAuth } = useAuthStore();
     const { settings } = useSettingsStore();
@@ -102,7 +107,8 @@ const App: React.FC = () => {
                                 setTimeout(() => reject(new Error('Firestore connection timeout')), 5000)
                             );
                             
-                            let userStationId = 'STN-001'; // Default legacy fallback
+                            let userStationId = 'STN-001';
+                            let userRole = 'MANAGER';
                             
                             try {
                                 const userSnap = await Promise.race([
@@ -111,14 +117,16 @@ const App: React.FC = () => {
                                 ]) as any;
                                 
                                 if (userSnap.exists()) {
-                                    userStationId = userSnap.data().stationId || 'STN-001';
+                                    const data = userSnap.data();
+                                    userStationId = data.stationId || 'STN-001';
+                                    userRole = data.role || 'MANAGER';
                                 } else {
                                     // First time login - provision their profile (also with timeout)
                                     await Promise.race([
                                         setDoc(userRef, {
                                             email: user.email,
                                             name: user.displayName || user.email || 'Admin',
-                                            role: 'admin',
+                                            role: userRole,
                                             stationId: 'STN-001',
                                             createdAt: new Date().toISOString()
                                         }),
@@ -138,7 +146,7 @@ const App: React.FC = () => {
                                     name: user.displayName || user.email || 'User',
                                     email: user.email || '',
                                     phone: user.phoneNumber || '',
-                                    role: 'admin',
+                                    role: typeof userRole !== 'undefined' ? userRole : 'MANAGER',
                                     theme: 'glassy-white',
                                     language: 'en',
                                     businessUnit: localStorage.getItem('businessUnit') || 'FUEL',
@@ -155,7 +163,7 @@ const App: React.FC = () => {
                                     userId: user.uid,
                                     name: user.displayName || 'User',
                                     email: user.email || '',
-                                    phone: '', role: 'admin', theme: 'glassy-white', language: 'en',
+                                    phone: '', role: 'MANAGER', theme: 'glassy-white', language: 'en',
                                     businessUnit: 'FUEL', stationId: 'STN-001', organizationId: user.uid
                                 }
                             });
@@ -252,6 +260,18 @@ const App: React.FC = () => {
                 return <PriceManagement />;
             case '/fuel/reports':
                 return <FuelReportsPage onNavigate={navigate} />;
+
+            // Anti-Fraud Phase 1 (Owner)
+            case '/owner/dashboard':
+                return useAuthStore.getState().user?.role === 'OWNER' ? <OwnerDashboardPage /> : <DashboardPage onNavigate={navigate} />;
+            case '/owner/stock':
+                return useAuthStore.getState().user?.role === 'OWNER' ? <OwnerStockManagement /> : <DashboardPage onNavigate={navigate} />;
+            case '/owner/fraud':
+                return useAuthStore.getState().user?.role === 'OWNER' ? <OwnerFraudAlerts /> : <DashboardPage onNavigate={navigate} />;
+            
+            // Anti-Fraud Phase 1 (Station Manager)
+            case '/station/stock-receipt':
+                return <StationStockReceipt />;
 
             // Lube Management
             case '/lube/dashboard':

@@ -204,7 +204,7 @@ export const ReportsPage: React.FC = () => {
         <div className="space-y-6 md:space-y-10 max-w-[1400px] mx-auto p-4 md:p-8 animate-in fade-in duration-700">
             <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
                 <div className="space-y-2">
-                    <h1 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tighter">
+                    <h1 className="fluid-title font-black text-slate-900 dark:text-white tracking-tighter">
                         Quantum BI <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400">Cockpit</span>
                     </h1>
                     <p className="text-sm font-medium text-slate-500 dark:text-slate-400 tracking-tight">
@@ -224,15 +224,15 @@ export const ReportsPage: React.FC = () => {
                 <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl p-2 rounded-[2rem] shadow-sm flex flex-wrap items-center gap-2 border border-slate-200/60 dark:border-slate-800"
+                    className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl p-2 rounded-[2rem] shadow-sm flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 border border-slate-200/60 dark:border-slate-800"
                 >
-                    <div className="flex bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl">
+                    <div className="flex flex-wrap bg-slate-100 dark:bg-slate-800/50 p-1.5 rounded-2xl">
                         {['today', 'week', 'month', 'year'].map(period => (
                             <button
                                 key={period}
                                 onClick={() => setQuickDate(period as any)}
                                 className={clsx(
-                                    'px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all',
+                                    'px-3 sm:px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all min-h-[44px]',
                                     activeQuickDate === period
                                         ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
                                         : 'hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm'
@@ -242,13 +242,13 @@ export const ReportsPage: React.FC = () => {
                             </button>
                         ))}
                     </div>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden md:block" />
-                    <div className="flex items-center gap-3 px-4">
-                        <Calendar size={16} className="text-slate-400 dark:text-slate-500" />
-                        <div className="flex items-center gap-2">
+                    <div className="h-px w-full sm:h-6 sm:w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+                    <div className="flex items-center gap-3 px-2 sm:px-4">
+                        <Calendar size={16} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                        <div className="flex flex-wrap items-center gap-2">
                             <input
                                 type="date"
-                                className="text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none bg-transparent hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors [color-scheme:light] dark:[color-scheme:dark]"
+                                className="text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none bg-transparent hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors [color-scheme:light] dark:[color-scheme:dark] min-h-[44px]"
                                 value={dateRange.start.toISOString().split('T')[0]}
                                 onChange={e =>
                                     setDateRange({ ...dateRange, start: new Date(e.target.value) })
@@ -257,7 +257,7 @@ export const ReportsPage: React.FC = () => {
                             <span className="text-slate-400 font-bold">→</span>
                             <input
                                 type="date"
-                                className="text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none bg-transparent hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors [color-scheme:light] dark:[color-scheme:dark]"
+                                className="text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none bg-transparent hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors [color-scheme:light] dark:[color-scheme:dark] min-h-[44px]"
                                 value={dateRange.end.toISOString().split('T')[0]}
                                 onChange={e =>
                                     setDateRange({ ...dateRange, end: new Date(e.target.value) })
@@ -268,7 +268,7 @@ export const ReportsPage: React.FC = () => {
                 </motion.div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
                 {kpis.map((kpi, idx) => (
                     <motion.div
                         key={idx}
@@ -423,8 +423,35 @@ export const ReportsPage: React.FC = () => {
                 ))}
             </div>
 
-            <div className="bg-white/80 dark:bg-[#0B1015]/80 backdrop-blur-3xl rounded-[2rem] md:rounded-[3rem] border border-slate-200/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none overflow-hidden min-h-[600px] flex flex-col xl:flex-row">
-                <div className="w-full xl:w-72 bg-slate-50/50 dark:bg-slate-900/30 border-r border-slate-200/60 dark:border-slate-800/60 p-6 md:p-8 space-y-2">
+            <div className="bg-white/80 dark:bg-[#0B1015]/80 backdrop-blur-3xl rounded-[2rem] md:rounded-[3rem] border border-slate-200/80 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none overflow-hidden min-h-[600px] flex flex-col">
+                {/* Category tabs — horizontal scroll on mobile, sidebar on xl+ */}
+                <div className="xl:hidden flex overflow-x-auto no-scrollbar border-b border-slate-200/60 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-900/30 p-2 gap-1">
+                    {visibleCategories.map(cat => (
+                        <button
+                            key={cat.id}
+                            onClick={() => setActiveCategory(cat.id)}
+                            className={clsx(
+                                'flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all min-h-[44px]',
+                                activeCategory === cat.id
+                                    ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50'
+                            )}
+                        >
+                            {cat.name}
+                            <span className={clsx(
+                                'ml-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-md',
+                                activeCategory === cat.id
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                            )}>
+                                {categoryCounts[cat.id] || 0}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex flex-col xl:flex-row flex-1 overflow-hidden">
+                <div className="hidden xl:block w-72 bg-slate-50/50 dark:bg-slate-900/30 border-r border-slate-200/60 dark:border-slate-800/60 p-6 md:p-8 space-y-2">
                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[.2em] mb-4 px-3">
                         Data Intelligence
                     </p>
@@ -433,7 +460,7 @@ export const ReportsPage: React.FC = () => {
                             key={cat.id}
                             onClick={() => setActiveCategory(cat.id)}
                             className={clsx(
-                                'w-full px-4 py-3.5 rounded-2xl flex items-center justify-between group transition-all duration-200',
+                                'w-full px-4 py-3.5 rounded-2xl flex items-center justify-between group transition-all duration-200 min-h-[44px]',
                                 activeCategory === cat.id
                                     ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-slate-200/50 dark:ring-slate-700/50'
                                     : 'hover:bg-slate-200/50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-400'
@@ -463,7 +490,7 @@ export const ReportsPage: React.FC = () => {
                     ))}
                 </div>
 
-                <div className="flex-1 p-6 md:p-10 lg:p-12 overflow-y-auto noscrollbar bg-transparent">
+                <div className="flex-1 p-4 sm:p-6 md:p-10 lg:p-12 overflow-y-auto noscrollbar bg-transparent">
                     <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8 md:mb-12">
                         <div>
                             <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tracking-tighter">
@@ -481,7 +508,7 @@ export const ReportsPage: React.FC = () => {
                             <input
                                 type="text"
                                 placeholder="Search registry..."
-                                className="w-full pl-11 pr-4 py-3 bg-white/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 text-sm font-semibold text-slate-900 dark:text-white shadow-sm transition-all placeholder:text-slate-400 backdrop-blur-md"
+                                className="w-full pl-11 pr-4 py-3 bg-white/60 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 text-base sm:text-sm font-semibold text-slate-900 dark:text-white shadow-sm transition-all placeholder:text-slate-400 backdrop-blur-md min-h-[44px]"
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                             />
@@ -574,6 +601,7 @@ export const ReportsPage: React.FC = () => {
                             </p>
                         </div>
                     </motion.div>
+                </div>
                 </div>
             </div>
         </div>

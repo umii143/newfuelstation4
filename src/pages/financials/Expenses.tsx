@@ -283,15 +283,15 @@ export const ExpensesPage: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
                 {/* Date Range */}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     {(['TODAY', 'WEEK', 'MONTH', 'ALL'] as const).map(range => (
                         <button
                             key={range}
                             onClick={() => setDateRange(range)}
                             className={clsx(
-                                'px-4 py-2 rounded-xl text-sm font-medium transition-all',
+                                'px-3 py-2 rounded-xl text-sm font-medium transition-all min-h-[44px]',
                                 dateRange === range
                                     ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30'
                                     : 'bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
@@ -310,7 +310,7 @@ export const ExpensesPage: React.FC = () => {
                     onChange={e =>
                         setFilterCategory(e.target.value as ShiftExpenseCategory | 'ALL')
                     }
-                    className="px-4 py-2 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:border-rose-500"
+                    className="px-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:border-rose-500 min-h-[44px] text-base sm:text-sm"
                 >
                     <option value="ALL">All Categories</option>
                     {EXPENSE_CATEGORIES.map(cat => (
@@ -321,14 +321,15 @@ export const ExpensesPage: React.FC = () => {
                 </select>
 
                 {/* Search */}
-                <div className="relative flex-1 min-w-[200px] max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+                <div className="relative flex-1 min-w-0 sm:min-w-[200px] sm:max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-secondary)]" />
                     <input
                         type="text"
+                        inputMode="search"
                         placeholder="Search expenses..."
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all"
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 transition-all min-h-[44px] text-base sm:text-sm"
                     />
                 </div>
             </div>
@@ -348,12 +349,13 @@ export const ExpensesPage: React.FC = () => {
                                 key={expense.id}
                                 className="p-4 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border)] hover:border-rose-500/50 transition-all"
                             >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
+                                {/* Mobile: stack vertically; Desktop: side by side */}
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                    <div className="flex items-center gap-3">
                                         {/* Category Icon */}
                                         <div
                                             className={clsx(
-                                                'w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg',
+                                                'w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-white shadow-lg flex-shrink-0',
                                                 catConfig.color === 'amber' &&
                                                     'bg-gradient-to-br from-amber-500 to-orange-500 shadow-amber-500/30',
                                                 catConfig.color === 'rose' &&
@@ -374,26 +376,25 @@ export const ExpensesPage: React.FC = () => {
                                         </div>
 
                                         {/* Info */}
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="font-bold text-[var(--text-primary)]">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h3 className="font-bold text-[var(--text-primary)] truncate">
                                                     {catConfig.label}
                                                 </h3>
                                                 <Badge color="blue">{expense.staffName}</Badge>
                                             </div>
-                                            <p className="text-sm text-[var(--text-secondary)] mt-1">
+                                            <p className="text-sm text-[var(--text-secondary)] mt-0.5 line-clamp-1">
                                                 {expense.note || 'No description'}
                                             </p>
-                                            <p className="text-xs text-[var(--text-secondary)] mt-1">
-                                                {formatDate(expense.shiftDate)} • Shift ID:{' '}
-                                                {expense.shiftId}
+                                            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                                                {formatDate(expense.shiftDate)} • {expense.shiftId}
                                             </p>
                                         </div>
                                     </div>
 
-                                    {/* Amount */}
-                                    <div className="text-right">
-                                        <p className="text-xl font-bold text-rose-500">
+                                    {/* Amount — always right-aligned */}
+                                    <div className="text-right flex-shrink-0 self-end sm:self-auto">
+                                        <p className="text-lg sm:text-xl font-bold text-rose-500">
                                             -{formatCurrency(expense.amount)}
                                         </p>
                                     </div>
@@ -424,13 +425,14 @@ export const ExpensesPage: React.FC = () => {
                                     {localError || storeError}
                                 </div>
                             )}
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-[var(--text-secondary)]">
+                            <div className="space-y-2 form-group">
+                                <label className="text-sm font-semibold text-[var(--text-secondary)]">
                                     Amount (₨) *
                                 </label>
                                 <input
                                     type="number"
-                                    className="w-full p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)]"
+                                    inputMode="decimal"
+                                    className="w-full p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] min-h-[44px] text-base"
                                     placeholder="0"
                                     value={newExpense.amount}
                                     onChange={e =>
@@ -438,12 +440,12 @@ export const ExpensesPage: React.FC = () => {
                                     }
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-[var(--text-secondary)]">
+                            <div className="space-y-2 form-group">
+                                <label className="text-sm font-semibold text-[var(--text-secondary)]">
                                     Category
                                 </label>
                                 <select
-                                    className="w-full p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)]"
+                                    className="w-full p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] min-h-[44px] text-base"
                                     value={newExpense.category}
                                     onChange={e =>
                                         setNewExpense({
@@ -491,7 +493,7 @@ export const ExpensesPage: React.FC = () => {
                                 />
                             </div>
                         </div>
-                        <div className="p-6 border-t border-[var(--border)] flex justify-end gap-3">
+                        <div className="p-4 sm:p-6 border-t border-[var(--border)] flex flex-col sm:flex-row justify-end gap-3">
                             <Button
                                 variant="secondary"
                                 onClick={() => {

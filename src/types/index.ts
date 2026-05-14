@@ -1412,3 +1412,5 @@ export interface AuditLog {
     ipAddress?: string;    // For login/access audit
     sessionId?: string;    // For session tracking
 }
+
+export * from './fraud';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, Button } from '@/components/ui';
 import { Fingerprint, Lock, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';

@@ -43,13 +43,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, class
     const bu = BU[settings.businessUnit] || BU.FUEL;
 
     const navItems = React.useMemo(() => {
+        let items = [];
         switch (settings.businessUnit) {
-            case 'FUEL': return fuelNavItems;
-            case 'CNG': return cngNavItems;
-            case 'LUBE': return lubeNavItems;
-            default: return [];
+            case 'FUEL': items = fuelNavItems; break;
+            case 'CNG': items = cngNavItems; break;
+            case 'LUBE': items = lubeNavItems; break;
+            default: items = [];
         }
-    }, [settings.businessUnit]);
+
+        const userRole = (currentUser as any)?.role || 'MANAGER';
+        
+        return items
+            .filter(item => !item.role || item.role === userRole)
+            .map(item => {
+                if (item.subItems) {
+                    return {
+                        ...item,
+                        subItems: item.subItems.filter(sub => !sub.role || sub.role === userRole)
+                    };
+                }
+                return item;
+            });
+    }, [settings.businessUnit, currentUser]);
 
     const isPathActive = useCallback((path: string) => {
         if (path === '/' && currentPath === '/') return true;

@@ -5,11 +5,11 @@ import { cn } from '@/lib/utils';
 import { useAuthStore, useSettingsStore } from '@/stores/authStore';
 import { useFuelStore } from '@/stores/fuelStore';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, Fingerprint, Globe, Search, User } from 'lucide-react';
+import { Bell, Fingerprint, Globe, Menu, Search, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { LiveTicker } from '@/components/ui/LiveTicker';
 
-export function GlobalHeader() {
+export function GlobalHeader({ onMobileMenuOpen }: { onMobileMenuOpen?: () => void }) {
     const [showNotifications, setShowNotifications] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
     const { user: currentUser, authMethod } = useAuthStore();
@@ -95,7 +95,17 @@ export function GlobalHeader() {
                         : 'bg-white/50 backdrop-blur-md border-transparent dark:bg-slate-950/50 bloomberg:bg-[#000000] bloomberg:border-transparent'
                 )}
             >
-                <div className="flex h-full items-center justify-between gap-4 pl-14 pr-4 lg:px-6">
+                <div className="flex h-full items-center justify-between gap-2 sm:gap-4 pl-3 pr-3 sm:pl-4 lg:px-6">
+                    {/* Hamburger (mobile only) */}
+                    <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={onMobileMenuOpen}
+                        className="lg:hidden flex-shrink-0 p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 shadow-sm"
+                        aria-label="Open navigation menu"
+                    >
+                        <Menu size={20} className="text-slate-600 dark:text-slate-300" />
+                    </motion.button>
+
                     <div className="hidden lg:flex items-center gap-2 md:gap-3 flex-1 min-w-0 overflow-x-auto no-scrollbar">
                         <div className="hidden lg:flex flex-col">
                             <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">
@@ -154,9 +164,7 @@ export function GlobalHeader() {
                         </div>
                     </div>
 
-                    
-
-                    <div className="ml-auto flex items-center gap-3 sm:gap-4 shrink-0">
+                    <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
                         <button
                             onClick={() => document.dispatchEvent(new CustomEvent('open-search'))}
                             className="glass-input hidden w-48 items-center gap-3 rounded-lg px-3 py-1.5 text-slate-400 transition-colors hover:text-slate-600 sm:flex lg:w-64 dark:hover:text-slate-300"

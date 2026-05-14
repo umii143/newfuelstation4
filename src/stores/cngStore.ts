@@ -7,6 +7,8 @@ import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
 import { auditLogger } from '@/lib/auditLogger';
 import { stampBusinessScope } from '@/lib/businessScope';
+import { useAntiFraudStore } from './antiFraudStore';
+import { useCustomerStore } from './dataStores';
 
 // CNG Specific Types
 export interface CascadeBank {
@@ -364,6 +366,74 @@ export const useCNGStore = create<CNGState>()(
                         return n;
                     });
 
+                    let hasDiscrepancy = false;
+                    let discrepancyNotes = '';
+
+                    // FR-02: Cash Shortage (Tolerance: 0.5%)
+                    if (closingState.variancePercentage < -0.5) {
+                        hasDiscrepancy = true;
+                        useAntiFraudStore.getState().generateFraudAlert(
+                            'FR-02',
+                            'CRITICAL',
+                            `Cash shortage detected during CNG shift closure. Expected: ₨${closingState.expectedCash.toLocaleString()}, Actual: ₨${closingState.actualCash.toLocaleString()}`,
+                            Math.abs(closingState.variance),
+                            closingState.stationId,
+                            closingState.expectedCash,
+                            closingState.actualCash,
+                            closingState.shiftId
+                        );
+                    }
+
+                    // FR-10: Expense Without Receipt (> 10k)
+                    const expenses = closingState.transactions.filter(t => t.type === 'EXPENSE');
+                    expenses.forEach(exp => {
+                        if (exp.amount > 10000 && (!exp.description || exp.description.trim() === '')) {
+                            hasDiscrepancy = true;
+                            useAntiFraudStore.getState().generateFraudAlert(
+                                'FR-10',
+                                'WARNING',
+                                `Large CNG expense (₨${exp.amount.toLocaleString()}) recorded without an explanatory note.`,
+                                exp.amount,
+                                closingState.stationId,
+                                0,
+                                exp.amount,
+                                closingState.shiftId
+                            );
+                        }
+                    });
+
+                    // FR-11: Credit Limit Exceeded
+                    const credits = closingState.transactions.filter(t => t.type === 'CREDIT_SALE');
+                    const customers = useCustomerStore.getState().customers;
+                    const getCustomerBalance = useCustomerLedgerStore.getState().getCustomerBalance;
+
+                    credits.forEach(credit => {
+                        if (credit.customerId) {
+                            const customer = customers.find(c => c.customerId === credit.customerId);
+                            if (customer) {
+                                const currentBalance = getCustomerBalance(customer.customerId);
+                                const newBalance = currentBalance + credit.amount;
+                                if (customer.creditLimit > 0 && newBalance > customer.creditLimit) {
+                                    hasDiscrepancy = true;
+                                    useAntiFraudStore.getState().generateFraudAlert(
+                                        'FR-11',
+                                        'WARNING',
+                                        `CNG Credit sale pushed customer ${customer.name} over their credit limit of ₨${customer.creditLimit.toLocaleString()}. Outstanding Balance: ₨${newBalance.toLocaleString()}`,
+                                        newBalance - customer.creditLimit,
+                                        closingState.stationId,
+                                        customer.creditLimit,
+                                        newBalance,
+                                        closingState.shiftId
+                                    );
+                                }
+                            }
+                        }
+                    });
+
+                    if (hasDiscrepancy) {
+                        discrepancyNotes = '[SYSTEM] Shift flagged for mathematical discrepancies (Cash/Credit/Expense). Alerts generated for Owner review.\n';
+                    }
+
                     // Ledger updates
                     const closedShift = stampBusinessScope<Shift>({
                         shiftId: closingState.shiftId,
@@ -404,6 +474,7 @@ export const useCNGStore = create<CNGState>()(
                         variancePercentage: closingState.variancePercentage,
                         status: 'CLOSED',
                         createdAt: new Date().toISOString(),
+                        notes: (closingState.notes ? closingState.notes + '\n' : '') + discrepancyNotes,
                         transactions: closingState.transactions,
                         // Ledger mapping support
                         creditEntries: closingState.transactions

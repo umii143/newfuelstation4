@@ -3,6 +3,8 @@ import type { ReportAccessTier } from '@/lib/roleHelpers';
 import { CNG_REPORTS } from './ReportRegistryCNG';
 import { LUBE_REPORTS } from './ReportRegistryLube';
 import { ENTERPRISE_REPORTS } from './ReportRegistryEnterprise';
+import { FORENSIC_REPORTS } from './ReportRegistryForensic';
+import { COMPLIANCE_REPORTS } from './ReportRegistryCompliance';
 
 export interface ReportColumn {
     key: string;
@@ -1658,5 +1660,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     ...FUEL_REPORTS,
     ...CNG_REPORTS,
     ...LUBE_REPORTS,
-    ...ENTERPRISE_REPORTS
+    ...ENTERPRISE_REPORTS,
+    ...FORENSIC_REPORTS,
+    ...COMPLIANCE_REPORTS
 ];

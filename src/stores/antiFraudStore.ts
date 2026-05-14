@@ -193,12 +193,22 @@ export const useAntiFraudStore = create<AntiFraudState>()(
                     permanent: true
                 };
                 
+                // Security Logging
+                auditLogger.log('SECURITY', 'FRAUD_ALERT_GENERATED', `Alert ${ruleId} triggered: ${details}`, newAlert.alertId);
+
                 set(state => ({
                     alerts: [newAlert, ...state.alerts]
                 }));
             },
             
             resolveFraudAlert: (alertId, ownerId, resolutionNote, status) => {
+                const user = useAuthStore.getState().user;
+                if (!user || user.role !== 'OWNER') {
+                    console.warn(`[SECURITY] Unauthorized attempt to resolve fraud alert ${alertId} by user ${user?.name}`);
+                    auditLogger.log('SECURITY', 'UNAUTHORIZED_ACCESS', `Unauthorized attempt to resolve fraud alert ${alertId}`, alertId);
+                    return;
+                }
+
                 set(state => ({
                     alerts: state.alerts.map(a => 
                         a.alertId === alertId 
@@ -206,6 +216,8 @@ export const useAntiFraudStore = create<AntiFraudState>()(
                             : a
                     )
                 }));
+                
+                auditLogger.log('SECURITY', 'FRAUD_ALERT_RESOLVED', `Alert ${alertId} resolved as ${status}. Note: ${resolutionNote}`, alertId);
             }
         }),
         { name: 'motorway-antifraud-store' }

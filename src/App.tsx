@@ -1,5 +1,6 @@
 import { Layout } from '@/components/layout/Layout';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
+import { RoleGuard } from '@/components/shared/RoleGuard';
 import { LoginPage } from '@/pages/Login';
 import { useAuthStore, useSettingsStore } from '@/stores/authStore';
 import { useFirestoreInit } from '@/hooks/useFirestoreInit';
@@ -57,7 +58,7 @@ const StaffManagerPage = React.lazy(() => import('@/pages/staff/StaffManager'));
 
 const OwnerDashboardPage = React.lazy(() => import('@/pages/owner/OwnerDashboard').then(m => ({ default: m.OwnerDashboard })));
 const OwnerStockManagement = React.lazy(() => import('@/pages/owner/StockManagement').then(m => ({ default: m.StockManagement })));
-const OwnerFraudAlerts = React.lazy(() => import('@/pages/owner/FraudAlerts').then(m => ({ default: m.FraudAlerts })));
+const FraudIntelligencePage = React.lazy(() => import('@/pages/owner/FraudIntelligence').then(m => ({ default: m.FraudIntelligence })));
 const StationStockReceipt = React.lazy(() => import('@/pages/station/StockReceipt').then(m => ({ default: m.StockReceipt })));
 
 const App: React.FC = () => {
@@ -263,11 +264,11 @@ const App: React.FC = () => {
 
             // Anti-Fraud Phase 1 (Owner)
             case '/owner/dashboard':
-                return useAuthStore.getState().user?.role === 'OWNER' ? <OwnerDashboardPage /> : <DashboardPage onNavigate={navigate} />;
+                return <RoleGuard allowedRoles={['OWNER']} featureName="Owner Dashboard"><OwnerDashboardPage /></RoleGuard>;
             case '/owner/stock':
-                return useAuthStore.getState().user?.role === 'OWNER' ? <OwnerStockManagement /> : <DashboardPage onNavigate={navigate} />;
+                return <RoleGuard allowedRoles={['OWNER']} featureName="Group Stock Management"><OwnerStockManagement /></RoleGuard>;
             case '/owner/fraud':
-                return useAuthStore.getState().user?.role === 'OWNER' ? <OwnerFraudAlerts /> : <DashboardPage onNavigate={navigate} />;
+                return <RoleGuard allowedRoles={['OWNER']} featureName="Forensic Audit Command"><FraudIntelligencePage /></RoleGuard>;
             
             // Anti-Fraud Phase 1 (Station Manager)
             case '/station/stock-receipt':

@@ -9,10 +9,17 @@ export interface PDFExportOptions {
     columns: string[];
     data: any[][];
     orientation?: 'portrait' | 'landscape';
+    isForensic?: boolean;
+    showSignature?: boolean;
 }
 
 export const exportToPDF = (options: PDFExportOptions) => {
-    const { title, subtitle, filename, columns, data, orientation = 'landscape' } = options;
+    const { 
+        title, subtitle, filename, columns, data, 
+        orientation = 'landscape',
+        isForensic = false,
+        showSignature = false
+    } = options;
 
     const doc = new jsPDF(orientation, 'pt', 'a4');
     
@@ -58,15 +65,49 @@ export const exportToPDF = (options: PDFExportOptions) => {
         alternateRowStyles: {
             fillColor: [248, 250, 252], // Slate-50
         },
-        margin: { top: 40, right: 40, bottom: 40, left: 40 },
-        didDrawPage: function () {
+        margin: { top: 40, right: 40, bottom: 60, left: 40 },
+        didDrawPage: function (data) {
+            // Forensic Watermark
+            if (isForensic) {
+                doc.saveGraphicsState();
+                doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
+                doc.setFontSize(60);
+                doc.setTextColor(220, 38, 38); // Red-600
+                doc.setFont('helvetica', 'bold');
+                doc.text('AUDIT-GRADE FORENSIC', pageWidth / 2, doc.internal.pageSize.getHeight() / 2, { 
+                    align: 'center', 
+                    angle: 45 
+                });
+                doc.restoreGraphicsState();
+            }
+
             // Footer
             const str = 'Page ' + (doc as any).internal.getNumberOfPages();
             doc.setFontSize(8);
             doc.setTextColor(148, 163, 184); // Slate-400
             doc.text(str, pageWidth / 2, doc.internal.pageSize.getHeight() - 20, { align: 'center' });
+            doc.text('Motorway Oil Enterprise - Proprietary Forensic Intelligence', 40, doc.internal.pageSize.getHeight() - 20);
         },
     });
+
+    // Signature Zone
+    if (showSignature) {
+        const finalY = (doc as any).lastAutoTable.finalY || 80;
+        const pageHeight = doc.internal.pageSize.getHeight();
+        
+        // Add new page if space is limited
+        if (finalY > pageHeight - 100) doc.addPage();
+        
+        const sigY = (doc as any).lastAutoTable.finalY + 40;
+        doc.setDrawColor(148, 163, 184);
+        doc.line(40, sigY, 240, sigY);
+        doc.line(pageWidth - 240, sigY, pageWidth - 40, sigY);
+        
+        doc.setFontSize(8);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Field Inspector Signature', 40, sigY + 15);
+        doc.text('Station Owner Approval', pageWidth - 40, sigY + 15, { align: 'right' });
+    }
 
     // Save the PDF
     doc.save(filename);

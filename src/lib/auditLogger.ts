@@ -1,5 +1,8 @@
 import { useAuditStore } from '@/stores/ledgerStore';
 import { useAuthStore } from '@/stores/authStore';
+import { getStationId } from '@/lib/authHelpers';
+import { fsSet } from '@/services/firestoreService';
+import { COLLECTIONS } from '@/lib/db';
 
 /**
  * Super Duper Audit Logger
@@ -24,14 +27,26 @@ export const auditLogger = {
 
         console.log(`[AUDIT] [${module}] ${action}: ${details}`);
 
-        addLog({
+        const logEntry = {
+            id: `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             module,
             action,
             details: reference ? `${details} (Ref: ${reference})` : details,
             userId: (user as any)?.userId || (user as any)?.id || 'SYSTEM',
             userName: (user as any)?.name || 'System Process',
-            severity: 'INFO',
-        });
+            severity: 'INFO' as const,
+            timestamp: new Date().toISOString(),
+        };
+
+        addLog(logEntry);
+
+        // Forensic persistence: Sync to cloud if station context exists
+        const sid = getStationId();
+        if (sid) {
+            fsSet(sid, COLLECTIONS.AUDIT_LOGS, logEntry.id, logEntry).catch(err => {
+                console.error('[SECURITY] Failed to sync audit log to cloud:', err);
+            });
+        }
     },
 
     // Specialized semantic loggers for convenience

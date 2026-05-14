@@ -491,6 +491,11 @@ export const ExpensesPage: React.FC = () => {
                                         setNewExpense({ ...newExpense, note: e.target.value })
                                     }
                                 />
+                                {parseFloat(newExpense.amount) > 10000 && !newExpense.note && (
+                                    <p className="text-xs text-rose-500 font-medium mt-1">
+                                        ⚠️ A note or receipt is required for expenses over ₨10,000. Missing notes will trigger an Anti-Fraud Alert for Owner review.
+                                    </p>
+                                )}
                             </div>
                         </div>
                         <div className="p-4 sm:p-6 border-t border-[var(--border)] flex flex-col sm:flex-row justify-end gap-3">

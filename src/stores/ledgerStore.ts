@@ -849,7 +849,14 @@ export const useAuditStore = create<AuditState>()(
                 if (sid) fsSet(sid, COLLECTIONS.AUDIT_LOGS, newLog.id, newLog);
             },
 
-            clearLogs: () => set({ logs: [] }),
+            clearLogs: () => {
+                const user = useSettingsStore.getState().user;
+                if (user?.role !== 'admin' && user?.role !== 'OWNER') {
+                    console.warn('[SECURITY] Unauthorized attempt to clear audit logs.');
+                    return;
+                }
+                set({ logs: [] });
+            },
         }),
         {
             name: 'motorway-audit-logs',

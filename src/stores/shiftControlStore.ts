@@ -4,6 +4,9 @@ import type { Shift, NozzleReading, TankReading } from '@/types';
 import { useAuthStore } from './authStore';
 import { useStationMasterStore } from './stationMasterStore';
 import { useFuelStore } from './fuelStore';
+import { useAntiFraudStore } from './antiFraudStore';
+import { useCustomerStore } from './dataStores';
+import { useCustomerLedgerStore } from './ledgerStore';
 
 interface ShiftControlState {
     activeShift: Shift | null;
@@ -171,6 +174,101 @@ export const useShiftControlStore = create<ShiftControlState>()(
                 const variance = actualCash - expectedCash;
                 const variancePercentage = expectedCash > 0 ? (variance / expectedCash) * 100 : 0;
                 
+                // --- ANTI-FRAUD INTEGRATION: Phase 2 ---
+                
+                // Rule FR-02: Cash Shortage (Tolerance: 0.5%)
+                if (variancePercentage < -0.5) {
+                    useAntiFraudStore.getState().generateFraudAlert(
+                        'FR-02',
+                        'CRITICAL',
+                        `Cash shortage detected during shift closure. Expected: Rs ${expectedCash.toLocaleString()}, Actual: Rs ${actualCash.toLocaleString()}`,
+                        Math.abs(variance),
+                        activeShift.stationId,
+                        expectedCash,
+                        actualCash,
+                        activeShift.shiftId
+                    );
+                }
+                
+                // Rule FR-04: Dip Variance (Tolerance: 0.5%)
+                const salesByFuelType = pendingNozzleReadings.reduce((acc, n) => {
+                    acc[n.fuelType] = (acc[n.fuelType] || 0) + n.netLiters;
+                    return acc;
+                }, {} as Record<string, number>);
+                
+                let hasDiscrepancy = variancePercentage < -0.5;
+                
+                pendingTankReadings.forEach(tank => {
+                    const sold = salesByFuelType[tank.fuelType] || 0;
+                    const expectedDip = tank.openingDip - sold;
+                    const difference = expectedDip - tank.closingDip; // Positive if manual dip is less than expected
+                    
+                    if (expectedDip > 0) {
+                        const diffPercent = (difference / expectedDip) * 100;
+                        if (diffPercent > 0.5) {
+                            hasDiscrepancy = true;
+                            // Estimate financial impact using an average rate of 250 per liter for now
+                            const financialImpact = difference * 250; 
+                            useAntiFraudStore.getState().generateFraudAlert(
+                                'FR-04',
+                                'WARNING',
+                                `Electronic vs Manual Dip mismatch for ${tank.tankName}. Expected: ${expectedDip.toFixed(1)}L, Entered: ${tank.closingDip.toFixed(1)}L`,
+                                financialImpact,
+                                activeShift.stationId,
+                                expectedDip,
+                                tank.closingDip,
+                                activeShift.shiftId
+                            );
+                        }
+                    }
+                });
+                
+                // Rule FR-10: Expense Without Receipt (> 10k)
+                const expenses = activeShift.expenseEntries || [];
+                expenses.forEach(exp => {
+                    if (exp.amount > 10000 && !exp.note) {
+                        hasDiscrepancy = true;
+                        useAntiFraudStore.getState().generateFraudAlert(
+                            'FR-10',
+                            'WARNING',
+                            `Large expense (₨${exp.amount.toLocaleString()}) recorded without a receipt or explanatory note. Category: ${exp.category}`,
+                            exp.amount,
+                            activeShift.stationId,
+                            0,
+                            exp.amount,
+                            activeShift.shiftId
+                        );
+                    }
+                });
+                
+                // Rule FR-11: Credit Limit Exceeded
+                const credits = activeShift.creditEntries || [];
+                const customers = useCustomerStore.getState().customers;
+                const getCustomerBalance = useCustomerLedgerStore.getState().getCustomerBalance;
+                
+                credits.forEach(credit => {
+                    const customer = customers.find(c => c.customerId === credit.customerId);
+                    if (customer) {
+                        const currentBalance = getCustomerBalance(customer.customerId);
+                        const newBalance = currentBalance + credit.amount;
+                        // Use custom limit if set, otherwise 0 means no limit check or a default check? 
+                        // The user said "custom limit", so we'll check against customer.creditLimit.
+                        if (customer.creditLimit > 0 && newBalance > customer.creditLimit) {
+                            hasDiscrepancy = true;
+                            useAntiFraudStore.getState().generateFraudAlert(
+                                'FR-11',
+                                'WARNING',
+                                `Credit sale pushed customer ${customer.name} over their assigned credit limit of ₨${customer.creditLimit.toLocaleString()}. Outstanding Balance: ₨${newBalance.toLocaleString()}`,
+                                newBalance - customer.creditLimit,
+                                activeShift.stationId,
+                                customer.creditLimit,
+                                newBalance,
+                                activeShift.shiftId
+                            );
+                        }
+                    }
+                });
+                
                 const closedShift: Shift = {
                     ...activeShift,
                     endTime: new Date().toISOString(),
@@ -195,8 +293,15 @@ export const useShiftControlStore = create<ShiftControlState>()(
                     actualCash,
                     variance,
                     variancePercentage,
-                    notes: varianceNotes || activeShift.notes
+                    notes: varianceNotes || activeShift.notes,
+                    // If discrepancies exist, we can optionally flag the shift itself 
+                    // (Note: `hasDiscrepancy` is calculated above)
                 };
+                
+                if (hasDiscrepancy) {
+                    closedShift.notes = (closedShift.notes ? closedShift.notes + '\n' : '') + 
+                        '[SYSTEM] Shift flagged for mathematical discrepancies (Cash/Dip). Alerts generated for Owner review.';
+                }
                 
                 set({ activeShift: null, isShiftWizardOpen: false });
                 

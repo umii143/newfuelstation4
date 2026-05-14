@@ -183,7 +183,9 @@ const ReportViewer: React.FC<ReportViewerProps> = ({ reportId, onBack, dateRange
             subtitle: `${report.category} Module • ${format(new Date(), 'PPpp')}`,
             filename: `${report.title.replace(/\s+/g, '_')}_${activeBusiness.reportSlug}_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`,
             columns,
-            data
+            data,
+            isForensic: report.category === 'THEFT_FORENSIC' || report.category === 'AUDIT',
+            showSignature: report.category === 'THEFT_FORENSIC' || report.category === 'AUDIT' || report.category === 'FINANCIAL' || report.category === 'SHIFT'
         });
     };
 

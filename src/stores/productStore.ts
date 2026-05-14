@@ -7,6 +7,7 @@ import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
 import { auditLogger } from '@/lib/auditLogger';
 import { getBusinessMeta, stampBusinessScope } from '@/lib/businessScope';
+import { useAntiFraudStore } from './antiFraudStore';
 
 interface ProductState {
     products: Product[];
@@ -92,6 +93,20 @@ export const useProductStore = create<ProductState>()(
             },
 
             deleteProduct: productId => {
+                const product = get().products.find(p => p.productId === productId);
+                if (product && product.currentStock > 0) {
+                    useAntiFraudStore.getState().generateFraudAlert(
+                        'FR-08',
+                        'WARNING',
+                        `Attempted to delete product ${product.name} while it still has ${product.currentStock} in stock. Deletion blocked.`,
+                        product.currentStock,
+                        getStationId() || 'UNKNOWN',
+                        product.currentStock,
+                        0
+                    );
+                    return; // Block deletion
+                }
+
                 set(state => ({
                     products: state.products.filter(p => p.productId !== productId),
                 }));
@@ -106,6 +121,20 @@ export const useProductStore = create<ProductState>()(
             },
 
             adjustStock: (productId, adjustment) => {
+                const productBefore = get().products.find(p => p.productId === productId);
+                
+                if (adjustment < 0 && productBefore) {
+                    useAntiFraudStore.getState().generateFraudAlert(
+                        'FR-05',
+                        'WARNING',
+                        `Manual stock reduction for ${productBefore.name}. Quantity: ${Math.abs(adjustment)} units. New Level: ${productBefore.currentStock + adjustment}`,
+                        Math.abs(adjustment),
+                        getStationId() || 'UNKNOWN',
+                        productBefore.currentStock,
+                        productBefore.currentStock + adjustment
+                    );
+                }
+
                 set(state => {
                     const updatedProducts = state.products.map(p =>
                         p.productId === productId

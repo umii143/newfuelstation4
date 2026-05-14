@@ -808,6 +808,11 @@ export const ShiftActivityPage: React.FC = () => {
                                                             </>
                                                         )}
                                                     </span>
+                                                    {!isOpen && shift.notes?.includes('[SYSTEM] Shift flagged') && (
+                                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black uppercase tracking-widest bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/25">
+                                                            🚨 Discrepancy Flagged
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-4 mt-1.5 text-sm text-gray-400 dark:text-slate-500 flex-wrap">
                                                     <span className="flex items-center gap-1.5 font-semibold">

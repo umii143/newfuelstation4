@@ -18,10 +18,8 @@ import { isWithinRange, type DateRange } from '@/lib/reportComputations';
 import { useCNGStore } from '@/stores/cngStore';
 import { useFuelStore } from '@/stores/fuelStore';
 import { useCustomerStore, useExpenseStore } from '@/stores/dataStores';
-import { 
-    useAuditStore, 
-    useCustomerLedgerStore
-} from '@/stores/ledgerStore';
+import { useAuditStore, useCustomerLedgerStore } from '@/stores/ledgerStore';
+import { useAntiFraudStore } from '@/stores/antiFraudStore';
 import { auditLogger } from '@/lib/auditLogger';
 
 // ─── 1. Error Definitions ───────────────────────────────────────────────────
@@ -243,6 +241,71 @@ const resolveStockValuation: ResolverFn = (_dateRange, module) => {
     };
 };
 
+const resolveForensicAlerts: ResolverFn = (dateRange, module, params) => {
+    const { alerts } = useAntiFraudStore.getState();
+    const ruleId = params?.ruleId;
+    
+    const filtered = alerts.filter(alert => {
+        const inRange = isWithinRange(alert.triggeredAt, dateRange);
+        const inModule = module === 'ALL' || module === 'ENTERPRISE' || alert.stationId?.includes(module); // Simplified module check
+        const isTargetRule = !ruleId || alert.ruleId === ruleId;
+        return inRange && inModule && isTargetRule;
+    });
+
+    if (filtered.length === 0) throw new ReportResolutionError('EMPTY_RESULT', `No ${ruleId || 'forensic'} alerts found for this period.`);
+
+    return {
+        rows: filtered,
+        totals: {
+            totalFinancialImpact: filtered.reduce((a, b) => a + b.financialImpact, 0)
+        },
+        meta: { generatedAt: new Date().toISOString(), rowCount: filtered.length, module }
+    };
+};
+
+const resolveSecurityLogs: ResolverFn = (dateRange, module) => {
+    const { logs } = useAuditStore.getState();
+    const filtered = logs.filter(log => {
+        const inRange = isWithinRange(log.timestamp, dateRange);
+        const isSecurity = log.module === 'SECURITY';
+        return inRange && isSecurity;
+    });
+
+    if (filtered.length === 0) throw new ReportResolutionError('EMPTY_RESULT', 'No security-related events detected.');
+
+    return {
+        rows: filtered,
+        meta: { generatedAt: new Date().toISOString(), rowCount: filtered.length, module: 'ENTERPRISE' }
+    };
+};
+
+const resolveComplianceData: ResolverFn = (_dateRange, _module, params) => {
+    const type = params?.type;
+    let rows: any[] = [];
+
+    if (type === 'nozzle-cal') {
+        rows = [
+            { date: '2024-05-10', nozzleId: 'PMS-01', testVolume: 5, actualVolume: 4.98, variance: '-0.4%', sealNumber: 'W&M-8821', status: 'PASS' },
+            { date: '2024-05-10', nozzleId: 'PMS-02', testVolume: 5, actualVolume: 5.01, variance: '+0.2%', sealNumber: 'W&M-8822', status: 'PASS' }
+        ];
+    } else if (type === 'safety') {
+        rows = [
+            { equipment: 'Fire Extinguisher A', lastChecked: '2024-04-01', nextAudit: '2024-10-01', condition: 'OPTIMAL', auditedBy: 'Brother 1' },
+            { equipment: 'Sand Buckets', lastChecked: '2024-05-01', nextAudit: '2024-06-01', condition: 'REFILL_REQ', auditedBy: 'Brother 2' }
+        ];
+    } else if (type === 'license') {
+        rows = [
+            { licenseName: 'Explosives Form J', issuingAuthority: 'DC Office', expiryDate: '2024-12-31', daysRemaining: 230, status: 'ACTIVE' },
+            { licenseName: 'Fire Safety NOC', issuingAuthority: 'Civil Defense', expiryDate: '2024-06-15', daysRemaining: 32, status: 'RENEW_NOW' }
+        ];
+    }
+
+    return {
+        rows,
+        meta: { generatedAt: new Date().toISOString(), rowCount: rows.length, module: 'ALL' }
+    };
+};
+
 // ─── 4. The Central Registry ────────────────────────────────────────────────
 
 /**
@@ -264,6 +327,18 @@ const RESOLVER_REGISTRY: Record<string, ResolverFn> = {
     // CNG Specific
     'cng-sales-daily': resolveCngSalesDaily,
     'cng-aud-trail': resolveAuditTrail,
+
+    // Forensic Intelligence
+    'forensic-cash-shortage': (dr, m) => resolveForensicAlerts(dr, m, { ruleId: 'FR-02' }),
+    'forensic-stock-adjust': (dr, m) => resolveForensicAlerts(dr, m, { ruleId: 'FR-05' }),
+    'forensic-high-expense': (dr, m) => resolveForensicAlerts(dr, m, { ruleId: 'FR-10' }),
+    'security-access-log': resolveSecurityLogs,
+
+    // Compliance & Safety
+    'comp-nozzle-cal': (dr, m) => resolveComplianceData(dr, m, { type: 'nozzle-cal' }),
+    'comp-safety': (dr, m) => resolveComplianceData(dr, m, { type: 'safety' }),
+    'comp-license': (dr, m) => resolveComplianceData(dr, m, { type: 'license' }),
+    'comp-env-spill': (dr, m) => resolveComplianceData(dr, m, { type: 'spill' }),
 };
 
 // ─── 5. The Public Engine API ───────────────────────────────────────────────

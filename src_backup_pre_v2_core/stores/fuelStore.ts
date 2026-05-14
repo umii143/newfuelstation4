@@ -20,8 +20,6 @@ import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
 import { auditLogger } from '@/lib/auditLogger';
 import { stampBusinessScope } from '@/lib/businessScope';
-import { useAntiFraudStore } from './antiFraudStore';
-import { useCustomerStore } from './dataStores';
 
 // ============================================
 // WIZARD INITIAL STATE
@@ -738,6 +736,7 @@ export const useFuelStore = create<FuelState>()(
                         });
                         updatedNozzles.forEach(nozzle => {
                             fsSet(sid, COLLECTIONS.NOZZLE_CONFIGS, nozzle.nozzleId, nozzle);
+                        });
                     }
 
                     get().resetWizard();
@@ -750,60 +749,6 @@ export const useFuelStore = create<FuelState>()(
                     }));
 
                     auditLogger.log('FUEL', 'SHIFT_CLOSE', `Shift #${closedShift.shiftId} completed by ${closedShift.staffName} with variance ₨${closedShift.variance.toFixed(2)}`, closedShift.shiftId);
-
-                    // ============================================
-                    // FORENSIC FRAUD DETECTION (PHASE 7)
-                    // ============================================
-                    const antiFraud = useAntiFraudStore.getState();
-                    const sid = getStationId();
-
-                    // FR-02: Significant Cash Shortage (> ₨500)
-                    if (closedShift.variance < -500) {
-                        antiFraud.generateFraudAlert(
-                            'FR-02',
-                            'CRITICAL',
-                            `Significant cash shortage in Fuel Shift #${closedShift.shiftId}. Expected: ₨${closedShift.actualCash - closedShift.variance}, Actual: ₨${closedShift.actualCash}. Shortage: ₨${Math.abs(closedShift.variance)}`,
-                            Math.abs(closedShift.variance),
-                            sid || 'UNKNOWN',
-                            closedShift.actualCash - closedShift.variance,
-                            closedShift.actualCash,
-                            closedShift.shiftId
-                        );
-                    }
-
-                    // FR-10: High-Value Expense without notes (> 10k)
-                    closedShift.expenseEntries?.forEach(exp => {
-                        if (exp.amount > 10000 && (!exp.note || exp.note.trim() === '')) {
-                            antiFraud.generateFraudAlert(
-                                'FR-10',
-                                'WARNING',
-                                `High-value expense (₨${exp.amount.toLocaleString()}) recorded in shift #${closedShift.shiftId} without description. Category: ${exp.category}`,
-                                exp.amount,
-                                sid || 'UNKNOWN',
-                                0,
-                                exp.amount,
-                                closedShift.shiftId
-                            );
-                        }
-                    });
-
-                    // FR-11: Credit Limit Exceeded
-                    const customerStore = useCustomerStore.getState();
-                    closedShift.creditEntries?.forEach(credit => {
-                        const available = customerStore.getAvailableCredit(credit.customerId);
-                        if (available < 0) {
-                            antiFraud.generateFraudAlert(
-                                'FR-11',
-                                'CRITICAL',
-                                `Credit limit exceeded for ${credit.customerName} during shift #${closedShift.shiftId}. Sale Amount: ₨${credit.amount}. Current Over-limit: ₨${Math.abs(available)}`,
-                                credit.amount,
-                                sid || 'UNKNOWN',
-                                available + credit.amount,
-                                available,
-                                closedShift.shiftId
-                            );
-                        }
-                    });
 
                     return closedShift;
                 } catch (error: any) {

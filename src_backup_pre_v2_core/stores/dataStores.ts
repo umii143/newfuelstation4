@@ -14,7 +14,6 @@ import { useCustomerLedgerStore, useSupplierLedgerStore } from './ledgerStore';
 import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
 import { stampBusinessScope } from '@/lib/businessScope';
-import { useAntiFraudStore } from './antiFraudStore';
 
 // Customer Store
 interface CustomerState {
@@ -589,20 +588,6 @@ export const useExpenseStore = create<ExpenseState>()(
                         createdAt: new Date().toISOString(),
                         businessUnit: settings.businessUnit as 'FUEL' | 'LUBE' | 'CNG',
                     });
-
-                    // FR-10: Expense Without Description (> 10k)
-                    if (newExpense.amount > 10000 && (!newExpense.description || newExpense.description.trim() === '')) {
-                        useAntiFraudStore.getState().generateFraudAlert(
-                            'FR-10',
-                            'WARNING',
-                            `Large ${newExpense.businessUnit} expense (₨${newExpense.amount.toLocaleString()}) recorded without explanatory notes.`,
-                            newExpense.amount,
-                            newExpense.stationId,
-                            0,
-                            newExpense.amount,
-                            newExpense.id
-                        );
-                    }
 
                     set(state => ({ expenses: [newExpense, ...state.expenses], isLoading: false }));
                     

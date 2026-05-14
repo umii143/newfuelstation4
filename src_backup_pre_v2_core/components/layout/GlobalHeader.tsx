@@ -4,7 +4,6 @@ import { getBusinessMeta } from '@/lib/businessScope';
 import { cn } from '@/lib/utils';
 import { useAuthStore, useSettingsStore } from '@/stores/authStore';
 import { useFuelStore } from '@/stores/fuelStore';
-import { useAntiFraudStore } from '@/stores/antiFraudStore';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, Fingerprint, Globe, Menu, Search, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -60,18 +59,6 @@ export function GlobalHeader({ onMobileMenuOpen }: { onMobileMenuOpen?: () => vo
                     type: 'shift',
                 });
             });
-
-        useAntiFraudStore.getState().alerts.filter(a => a.status === 'OPEN').forEach(alert => {
-            notifs.push({
-                id: idCounter++,
-                title: `${alert.severity} Fraud Alert`,
-                message: alert.details,
-                time: new Date(alert.triggeredAt).toLocaleTimeString(),
-                unread: true,
-                type: 'fraud',
-                severity: alert.severity
-            });
-        });
 
         return notifs;
     }, [fuelState]);

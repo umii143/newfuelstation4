@@ -7,7 +7,6 @@ import {
     Package,
     Settings,
     Shield,
-    ShieldAlert,
     ShoppingCart,
     TrendingUp,
     Users,
@@ -20,23 +19,11 @@ export interface NavItem {
     label: string;
     path: string;
     icon: React.ElementType;
-    subItems?: { label: string; path: string; role?: string }[];
-    role?: string;
+    subItems?: { label: string; path: string }[];
 }
 
 export const fuelNavItems: NavItem[] = [
     { label: 'Dashboard', path: '/', icon: LayoutDashboard },
-    {
-        label: 'Anti-Fraud Control',
-        path: '/owner',
-        icon: ShieldAlert,
-        role: 'OWNER',
-        subItems: [
-            { label: '⚡ Owner Dashboard', path: '/owner/dashboard', role: 'OWNER' },
-            { label: '📦 Stock Management', path: '/owner/stock', role: 'OWNER' },
-            { label: '🚨 Fraud Alerts', path: '/owner/fraud', role: 'OWNER' },
-        ],
-    },
     {
         label: 'Fuel Management',
         path: '/fuel',
@@ -49,7 +36,6 @@ export const fuelNavItems: NavItem[] = [
             { label: 'Tank Levels', path: '/fuel/tanks' },
             { label: 'Dip Management', path: '/fuel/dips' },
             { label: 'Price Management', path: '/fuel/pricing' },
-            { label: 'Stock Receipt', path: '/station/stock-receipt' },
             { label: 'Purchase Orders', path: '/fuel/orders' },
         ],
     },
@@ -191,3 +177,5 @@ export const lubeNavItems: NavItem[] = [
     },
     { label: 'Settings', path: '/lube/settings', icon: Settings },
 ];
+
+

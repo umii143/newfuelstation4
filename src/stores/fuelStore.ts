@@ -738,6 +738,7 @@ export const useFuelStore = create<FuelState>()(
                         });
                         updatedNozzles.forEach(nozzle => {
                             fsSet(sid, COLLECTIONS.NOZZLE_CONFIGS, nozzle.nozzleId, nozzle);
+                        });
                     }
 
                     get().resetWizard();

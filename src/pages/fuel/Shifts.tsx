@@ -10,7 +10,7 @@ interface ShiftsPageProps {
     onNavigate: (path: string) => void;
 }
 
-const ShiftsPage: React.FC<ShiftsPageProps> = ({}) => {
+const ShiftsPage: React.FC<ShiftsPageProps> = () => {
     const { shifts, openClosingWizard, isClosingWizardOpen, closeClosingWizard, isLoading } = useFuelStore();
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -49,7 +49,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = ({}) => {
                     onClick={openClosingWizard}
                     className="h-16 px-10 rounded-2xl bg-blue-600 hover:bg-blue-500 font-black uppercase tracking-widest flex gap-3 shadow-xl shadow-blue-500/20"
                 >
-                    <Plus size={24} /> Close New Shift
+                    <Plus size={24} /> Start Shift Closing
                 </Button>
             </div>
 

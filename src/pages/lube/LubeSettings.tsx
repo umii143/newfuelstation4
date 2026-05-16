@@ -1,6 +1,6 @@
 import { Button, Card, Input, Modal, PageHeader } from '@/components/ui';
 import { useToast } from '@/contexts/ToastContext';
-import { useSettingsStore } from '@/stores/authStore';
+import { useAuthStore, useSettingsStore } from '@/stores/authStore';
 import {
     Building2,
     Database,
@@ -748,8 +748,7 @@ export const LubeSettingsPage: React.FC = () => {
                                     autoFocus
                                     onKeyPress={e => {
                                         if (e.key === 'Enter' && pinInput) {
-                                            const { user } =
-                                                require('@/stores/authStore').useAuthStore.getState();
+                                            const { user } = useAuthStore.getState();
                                             if (pinInput === (user as any)?.pin) {
                                                 setDeleteStep('confirm');
                                                 setPinInput('');

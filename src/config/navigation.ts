@@ -46,10 +46,9 @@ export const fuelNavItems: NavItem[] = [
             { label: 'Station Master', path: '/fuel/station-master' },
             { label: 'Shift Wizard', path: '/fuel/shifts' }, // Main entry point
             { label: 'Shift Logs', path: '/fuel/activity' }, // Historical view
-            { label: 'Tank Levels', path: '/fuel/tanks' },
+            { label: 'Tank Inventory', path: '/fuel/inventory' },
             { label: 'Dip Management', path: '/fuel/dips' },
             { label: 'Price Management', path: '/fuel/pricing' },
-            { label: 'Stock Receipt', path: '/station/stock-receipt' },
             { label: 'Purchase Orders', path: '/fuel/orders' },
         ],
     },

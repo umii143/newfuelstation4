@@ -315,7 +315,7 @@ export const LiquidTank3D: React.FC<{
                                 preserveAspectRatio="none"
                             >
                                 <path
-                                    d="M0 12 Q25 0 50 12 T100 12 L100 24 L0 24 Z"
+                                    d="M0,12Q25,0,50,12T100,12L100,24L0,24Z"
                                     fill="rgba(255,255,255,0.4)"
                                 />
                             </svg>
@@ -325,7 +325,7 @@ export const LiquidTank3D: React.FC<{
                                 preserveAspectRatio="none"
                             >
                                 <path
-                                    d="M0 12 Q25 0 50 12 T100 12 L100 24 L0 24 Z"
+                                    d="M0,12Q25,0,50,12T100,12L100,24L0,24Z"
                                     fill="rgba(255,255,255,0.4)"
                                 />
                             </svg>
@@ -346,7 +346,7 @@ export const LiquidTank3D: React.FC<{
                                 preserveAspectRatio="none"
                             >
                                 <path
-                                    d="M0 12 Q25 24 50 12 T100 12 L100 24 L0 24 Z"
+                                    d="M0,12Q25,24,50,12T100,12L100,24L0,24Z"
                                     fill="rgba(255,255,255,0.3)"
                                 />
                             </svg>
@@ -356,7 +356,7 @@ export const LiquidTank3D: React.FC<{
                                 preserveAspectRatio="none"
                             >
                                 <path
-                                    d="M0 12 Q25 24 50 12 T100 12 L100 24 L0 24 Z"
+                                    d="M0,12Q25,24,50,12T100,12L100,24L0,24Z"
                                     fill="rgba(255,255,255,0.3)"
                                 />
                             </svg>

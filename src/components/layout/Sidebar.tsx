@@ -7,7 +7,18 @@
 import { cn } from '@/lib/utils';
 import { useAuthStore, useSettingsStore } from '@/stores/authStore';
 import { AnimatePresence, motion, LayoutGroup } from 'framer-motion';
-import { ChevronDown, ChevronLeft, LogOut, ShieldCheck, Zap } from 'lucide-react';
+import {
+    BarChart3,
+    ChevronDown,
+    ChevronLeft,
+    Droplets,
+    LogOut,
+    Settings2,
+    ShieldCheck,
+    ShoppingCart,
+    Truck,
+    Zap,
+} from 'lucide-react';
 import React, { useState, useCallback, createContext, useContext } from 'react';
 import { cngNavItems, fuelNavItems, lubeNavItems } from '../../config/navigation';
 
@@ -77,8 +88,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, class
         onMobileClose?.();
     }, [onNavigate, onMobileClose]);
 
-    const topItems = navItems.slice(0, 1);
-    const opItems = navItems.slice(1);
+	    const topItems = navItems.slice(0, 1);
+	    const opItems = navItems.slice(1);
+
+        const quickActions = React.useMemo(() => {
+            switch (settings.businessUnit) {
+                case 'LUBE':
+                    return [
+                        { label: 'POS', icon: ShoppingCart, path: '/lube/pos' },
+                        { label: 'Products', icon: Droplets, path: '/lube/products' },
+                        { label: 'Reports', icon: BarChart3, path: '/lube/reports' },
+                        { label: 'Settings', icon: Settings2, path: '/lube/settings' },
+                    ];
+                case 'CNG':
+                    return [
+                        { label: 'Shifts', icon: Zap, path: '/cng/shifts' },
+                        { label: 'Inventory', icon: Droplets, path: '/cng/tanks' },
+                        { label: 'Rates', icon: BarChart3, path: '/cng/rates' },
+                        { label: 'Settings', icon: Settings2, path: '/cng/settings' },
+                    ];
+                case 'FUEL':
+                default:
+                    return [
+                        { label: 'Shift', icon: Zap, path: '/fuel/shifts' },
+                        { label: 'Tanks', icon: Droplets, path: '/fuel/inventory' },
+                        { label: 'Receive', icon: Truck, path: '/fuel/orders' },
+                        { label: 'Impact', icon: BarChart3, path: '/rate-impact' },
+                    ];
+            }
+        }, [settings.businessUnit]);
 
     const sidebarContent = (
         <motion.aside
@@ -182,6 +220,59 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, class
 
             {/* ── DIVIDER ──────────────────────────────────── */}
             <div className="mx-4 mb-2 h-px bg-slate-100 dark:bg-slate-800" />
+
+            {/* ── QUICK ACTIONS ─────────────────────────────── */}
+            {!isCollapsed && (
+                <div className="px-3 pb-2">
+                    <div className="flex items-center justify-between px-2.5 pb-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                            Quick Actions
+                        </p>
+                        <span
+                            className="text-[9px] font-black uppercase tracking-[0.22em]"
+                            style={{ color: `rgba(${bu.rgb},0.75)` }}
+                        >
+                            Live
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {quickActions.map(action => {
+                            const Icon = action.icon;
+                            return (
+                                <motion.button
+                                    key={action.path}
+                                    whileTap={{ scale: 0.98 }}
+                                    whileHover={{ y: -1 }}
+                                    onClick={() => handleNavigate(action.path)}
+                                    className="group flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition-all"
+                                    style={{
+                                        borderColor: `rgba(${bu.rgb},0.16)`,
+                                        background: `linear-gradient(135deg, rgba(${bu.rgb},0.10) 0%, rgba(${bu.rgb},0.04) 100%)`,
+                                    }}
+                                >
+                                    <div
+                                        className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                                        style={{
+                                            background: `rgba(${bu.rgb},0.14)`,
+                                            boxShadow: `0 6px 18px rgba(${bu.rgb},0.18)`,
+                                        }}
+                                    >
+                                        <Icon size={15} style={{ color: `rgb(${bu.rgb})` }} strokeWidth={2.4} />
+                                    </div>
+                                    <div className="min-w-0 text-left">
+                                        <p className="text-[12px] font-extrabold text-slate-800 dark:text-slate-100 leading-tight truncate">
+                                            {action.label}
+                                        </p>
+                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 truncate">
+                                            Open
+                                        </p>
+                                    </div>
+                                </motion.button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* ── NAVIGATION ───────────────────────────────── */}
             <LayoutGroup>

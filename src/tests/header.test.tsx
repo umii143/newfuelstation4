@@ -4,7 +4,7 @@ import { GlobalHeader } from '../components/layout/GlobalHeader';
 
 test('renders GlobalHeader without crashing', () => {
     try {
-        const {  } = render(<GlobalHeader />);
+        render(<GlobalHeader />);
         console.log('SUCCESS: Rendered correctly');
     } catch (e) {
         console.error('CRASH DURING RENDER:', e);

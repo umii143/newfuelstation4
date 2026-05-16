@@ -492,6 +492,22 @@ const TankManagementTab: React.FC = () => {
                             required
                         />
                         <Input
+                            label="Current Level (L)"
+                            name="currentLevel"
+                            type="number"
+                            defaultValue={editingTank?.currentLevel || 0}
+                            required
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Input
+                            label="Sale Price (PKR/L)"
+                            name="salePrice"
+                            type="number"
+                            defaultValue={editingTank?.salePrice || 0}
+                            required
+                        />
+                        <Input
                             label="Safe Level (L)"
                             name="minimumThresholdLevel"
                             type="number"

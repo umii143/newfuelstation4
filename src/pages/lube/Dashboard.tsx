@@ -487,7 +487,7 @@ export const LubeDashboard: React.FC<LubeDashboardProps> = ({ onNavigate }) => {
         previousRevenue > 0
             ? Number((((todayRevenue - previousRevenue) / previousRevenue) * 100).toFixed(1))
             : 0;
-    // const transactionChange =
+    const transactionChange =
         previousTransactions > 0
             ? Number(
                   (
@@ -496,10 +496,12 @@ export const LubeDashboard: React.FC<LubeDashboardProps> = ({ onNavigate }) => {
                   ).toFixed(1)
               )
             : 0;
-    // const customerChange =
+    const customerChange =
         previousCustomers > 0
             ? Number((((activeCustomers - previousCustomers) / previousCustomers) * 100).toFixed(1))
             : 0;
+    void transactionChange;
+    void customerChange;
 
     // Low stock items
     const lowStockItems = lubeProducts.filter(p => p.currentStock < 10);

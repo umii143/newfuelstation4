@@ -19,12 +19,13 @@ export const getDateRange = (filter: DateRangeFilter, customRange?: DateRange): 
                 startDate: startOfDay(today).toISOString(),
                 endDate: endOfDay(today).toISOString()
             };
-        case 'YESTERDAY':
+        case 'YESTERDAY': {
             const yesterday = subDays(today, 1);
             return {
                 startDate: startOfDay(yesterday).toISOString(),
                 endDate: endOfDay(yesterday).toISOString()
             };
+        }
         case 'LAST_7_DAYS':
             return {
                 startDate: startOfDay(subDays(today, 7)).toISOString(),

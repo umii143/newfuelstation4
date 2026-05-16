@@ -1110,12 +1110,8 @@ export const SuppliersPage: React.FC = () => {
                                 }}
                                 disabled={!purchaseForm.amount}
                             >
-                                {false ? (
-                                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                                ) : (
-                                    <Plus size={18} className="mr-2" />
-                                )}
-                                {false ? 'Recording...' : 'Record Expense'}
+                                <Plus size={18} className="mr-2" />
+                                Record Expense
                             </Button>
                         </div>
                     </div>

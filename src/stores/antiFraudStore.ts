@@ -10,6 +10,7 @@ import type {
 } from '@/types';
 import { useAuthStore } from './authStore';
 import { getCurrentUserId } from '@/lib/authHelpers';
+import { auditLogger } from '@/lib/auditLogger';
 
 interface AntiFraudState {
     // State
@@ -204,7 +205,7 @@ export const useAntiFraudStore = create<AntiFraudState>()(
             resolveFraudAlert: (alertId, ownerId, resolutionNote, status) => {
                 const user = useAuthStore.getState().user;
                 if (!user || user.role !== 'OWNER') {
-                    console.warn(`[SECURITY] Unauthorized attempt to resolve fraud alert ${alertId} by user ${user?.name}`);
+                    console.warn(`[SECURITY] Unauthorized attempt to resolve fraud alert ${alertId} by user ${user?.email || 'unknown'}`);
                     auditLogger.log('SECURITY', 'UNAUTHORIZED_ACCESS', `Unauthorized attempt to resolve fraud alert ${alertId}`, alertId);
                     return;
                 }

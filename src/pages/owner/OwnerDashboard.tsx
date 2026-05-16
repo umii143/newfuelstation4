@@ -3,7 +3,7 @@ import { useAntiFraudStore } from '@/stores/antiFraudStore';
 import { 
     AlertTriangle, Package, TrendingUp, Truck, ShieldAlert, 
     ShieldCheck, BarChart3, Clock, Zap, Activity, Info,
-    Fingerprint, Lock, Eye, Search, Filter, AlertCircle
+    Fingerprint, Lock
 } from 'lucide-react';
 import { useAuditStore } from '@/stores/ledgerStore';
 
@@ -13,13 +13,6 @@ const STATIONS = [
     { id: 'STN-003', name: 'Station 3', manager: 'Brother 3' },
 ];
 
-const FUEL_LABELS: Record<string, string> = {
-    PETROL_92: 'Petrol 92',
-    PETROL_95: 'Petrol 95',
-    DIESEL: 'Diesel',
-    PREMIUM_DIESEL: 'Premium Diesel',
-    CNG: 'CNG',
-};
 
 function navigate(path: string) {
     window.history.pushState({}, '', path);
@@ -107,7 +100,7 @@ const SecurityMonitor: React.FC<{ logs: any[] }> = ({ logs }) => (
 );
 
 export const OwnerDashboard: React.FC = () => {
-    const { ownerStockPool, dispatches, alerts } = useAntiFraudStore();
+    const { dispatches, alerts } = useAntiFraudStore();
     const { logs } = useAuditStore();
 
     const securityLogs = useMemo(() => 
@@ -130,7 +123,6 @@ export const OwnerDashboard: React.FC = () => {
         });
     }, [dispatches, alerts]);
 
-    const poolFuels = Object.entries(ownerStockPool).filter(([, qty]) => qty > 0);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-4 md:p-6">

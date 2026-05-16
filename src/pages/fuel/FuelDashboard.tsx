@@ -6,6 +6,7 @@
 import { useAuthStore } from '@/stores/authStore';
 import { useStaffStore } from '@/stores/dataStores';
 import { useFuelStore } from '@/stores/fuelStore';
+import { useConfigStore } from '@/stores/configStore';
 import { LiquidTank } from '@/components/fuel/LiquidTank';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -106,7 +107,9 @@ function Count({ to, p = '', s = '' }: { to: number; p?: string; s?: string }) {
         };
         r.current = requestAnimationFrame(tick);
         return () => {
-            r.current && cancelAnimationFrame(r.current);
+            if (r.current) {
+                cancelAnimationFrame(r.current);
+            }
         };
     }, [to]);
     return (
@@ -154,7 +157,13 @@ const Tip = ({ active, payload, label }: any) => {
                     />
                     <span className="text-[11px] text-gray-400">{p.name}</span>
                     <span className="ml-auto text-[12px] font-bold text-white tabular-nums">
-                        {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
+                        {typeof p.value === 'number'
+                            ? p.name?.toLowerCase?.().includes('revenue') || p.name?.includes('(Rs)')
+                                ? `Rs ${p.value.toLocaleString()}`
+                                : p.name?.toLowerCase?.().includes('volume') || p.name?.includes('(L)')
+                                  ? `${p.value.toLocaleString()} L`
+                                  : p.value.toLocaleString()
+                            : p.value}
                     </span>
                 </div>
             ))}
@@ -305,6 +314,7 @@ function ChartEmpty({ onStart }: { onStart: () => void }) {
 export function FuelDashboard({ onNavigate }: Props) {
     const { user } = useAuthStore();
     const fuel = useFuelStore();
+    const config = useConfigStore();
     const staff = useStaffStore(s => s.users);
     const [now, sN] = useState(new Date());
     const [dismiss, setDismiss] = useState(false);
@@ -401,11 +411,26 @@ export function FuelDashboard({ onNavigate }: Props) {
     }, [fuel, staff, today]);
 
     const charts = useMemo(() => {
+        const withMA = (rows: { day: string; rev: number; lit: number }[]) => {
+            const w = 3;
+            return rows.map((row, idx) => {
+                const start = Math.max(0, idx - (w - 1));
+                const slice = rows.slice(start, idx + 1);
+                const revMA = slice.reduce((s, r) => s + r.rev, 0) / slice.length;
+                const litMA = slice.reduce((s, r) => s + r.lit, 0) / slice.length;
+                return {
+                    ...row,
+                    revMA: Math.round(revMA),
+                    litMA: Math.round(litMA),
+                };
+            });
+        };
+
         const cl = [...fuel.shifts.filter(s => s.status === 'CLOSED')]
             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
             
         if (cl.length === 0) {
-            return 'M,T,W,T,F,S,S,S'.split(',').map(d => ({ day: d, rev: 0, lit: 0 }));
+            return withMA('M,T,W,T,F,S,S,S'.split(',').map(d => ({ day: d, rev: 0, lit: 0 })));
         }
 
         if (chartView === 'HOURLY') {
@@ -437,7 +462,9 @@ export function FuelDashboard({ onNavigate }: Props) {
                     }
                 });
             });
-            return hourly.map(h => ({ day: h.day, rev: Math.round(h.rev), lit: Math.round(h.lit) }));
+            return withMA(
+                hourly.map(h => ({ day: h.day, rev: Math.round(h.rev), lit: Math.round(h.lit) }))
+            );
         }
         else if (chartView === 'WEEKLY') {
             const weeklyMap = new Map<string, { rev: number; lit: number }>();
@@ -452,11 +479,11 @@ export function FuelDashboard({ onNavigate }: Props) {
                 curr.lit += s.nozzleSales?.reduce((b: number, r: any) => b + (r.netSales || 0), 0) || 0;
                 weeklyMap.set(weekStr, curr);
             });
-            return Array.from(weeklyMap.entries()).slice(-8).map(([day, data]) => ({
+            return withMA(Array.from(weeklyMap.entries()).slice(-8).map(([day, data]) => ({
                 day,
                 rev: Math.round(data.rev),
                 lit: Math.round(data.lit),
-            }));
+            })));
         }
         else if (chartView === 'MONTHLY') {
             const monthlyMap = new Map<string, { rev: number; lit: number }>();
@@ -468,19 +495,23 @@ export function FuelDashboard({ onNavigate }: Props) {
                 curr.lit += s.nozzleSales?.reduce((b: number, r: any) => b + (r.netSales || 0), 0) || 0;
                 monthlyMap.set(monthStr, curr);
             });
-            return Array.from(monthlyMap.entries()).slice(-8).map(([day, data]) => ({
+            return withMA(Array.from(monthlyMap.entries()).slice(-8).map(([day, data]) => ({
                 day,
                 rev: Math.round(data.rev),
                 lit: Math.round(data.lit),
-            }));
+            })));
         }
         
         // DEFAULT: DAILY
-        return cl.slice(-8).map(s => ({
-            day: new Date(s.startTime).toLocaleDateString('en-US', { weekday: 'short' }),
-            rev: Math.round(s.totalRevenue),
-            lit: Math.round(s.nozzleSales?.reduce((b: number, r: any) => b + (r.netSales || 0), 0) || 0),
-        }));
+        return withMA(
+            cl.slice(-8).map(s => ({
+                day: new Date(s.startTime).toLocaleDateString('en-US', { weekday: 'short' }),
+                rev: Math.round(s.totalRevenue),
+                lit: Math.round(
+                    s.nozzleSales?.reduce((b: number, r: any) => b + (r.netSales || 0), 0) || 0
+                ),
+            }))
+        );
     }, [fuel.shifts, chartView, now]);
 
     // â”€â”€ AI Revenue Forecast (linear regression on last 7 shifts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -717,6 +748,7 @@ export function FuelDashboard({ onNavigate }: Props) {
             val: `${a.pct}%`,
             delta: null,
             spark: fuel.tanks.map(t => t.currentLevel || 0),
+            // eslint-disable-next-line no-irregular-whitespace
             info: `${a.low.length > 0 ? `âš  ${a.low.length} tank low` : 'All tanks healthy'}`,
             sub: `${(a.cur / 1000).toFixed(1)}K / ${(a.cap / 1000).toFixed(0)}K L`,
             click: () => onNavigate('/fuel/tanks'),
@@ -742,26 +774,65 @@ export function FuelDashboard({ onNavigate }: Props) {
               ? `Rs ${(n / 1000).toFixed(1)}K`
               : `Rs ${n}`;
 
-    const pumpRates =
-        fuel.tanks.length > 0
-            ? fuel.tanks.map(t => ({
-                  label: t.name || t.fuelType?.replace('_', ' ') || 'Fuel',
-                  price:
-                      (fuel as any).prices?.[t.fuelType] ??
-                      (FH[t.fuelType] === 'rose'
-                          ? 258
-                          : FH[t.fuelType] === 'blue'
-                            ? 178.25
-                            : 234.5),
-                  h: (FH[t.fuelType] || 'blue') as H,
-                  stock: t.currentLevel || 0,
-                  cap: t.capacity || 0,
-              }))
-            : [
-                  { label: 'Petrol 92', price: 234.5, h: 'amber' as H, stock: 0, cap: 0 },
-                  { label: 'Petrol 95', price: 258.0, h: 'rose' as H, stock: 0, cap: 0 },
-                  { label: 'Diesel', price: 178.25, h: 'blue' as H, stock: 0, cap: 0 },
-              ];
+    const getRate = (fuelType: any) => {
+        const byConfig =
+            typeof (config as any).getCurrentRate === 'function'
+                ? (config as any).getCurrentRate(fuelType)
+                : (config as any).rateConfigs?.find((r: any) => r.fuelType === fuelType)?.currentRate;
+        if (typeof byConfig === 'number' && byConfig > 0) return byConfig;
+
+        const byTank = fuel.tanks.find(t => t.fuelType === fuelType)?.salePrice;
+        if (typeof byTank === 'number' && byTank > 0) return byTank;
+
+        const byTankCfg = (config as any).tankConfigs?.find(
+            (t: any) => t.fuelType === fuelType && t.businessUnit === 'FUEL'
+        )?.salePrice;
+        if (typeof byTankCfg === 'number' && byTankCfg > 0) return byTankCfg;
+
+        return FH[fuelType] === 'rose' ? 258 : FH[fuelType] === 'blue' ? 178.25 : 234.5;
+    };
+
+    const pumpRates = (() => {
+        if (fuel.tanks.length === 0) {
+            return [
+                { label: 'Petrol 92', price: 234.5, h: 'amber' as H, stock: 0, cap: 0 },
+                { label: 'Petrol 95', price: 258.0, h: 'rose' as H, stock: 0, cap: 0 },
+                { label: 'Diesel', price: 178.25, h: 'blue' as H, stock: 0, cap: 0 },
+            ];
+        }
+
+        const byType = new Map<
+            string,
+            { label: string; fuelType: string; h: H; stock: number; cap: number }
+        >();
+        for (const tank of fuel.tanks) {
+            const fuelType = tank.fuelType || 'FUEL';
+            const existing = byType.get(fuelType);
+            const label = fuelType.split('_').join(' ');
+            if (!existing) {
+                byType.set(fuelType, {
+                    label,
+                    fuelType,
+                    h: (FH[fuelType] || 'blue') as H,
+                    stock: tank.currentLevel || 0,
+                    cap: tank.capacity || 0,
+                });
+            } else {
+                existing.stock += tank.currentLevel || 0;
+                existing.cap += tank.capacity || 0;
+            }
+        }
+
+        return Array.from(byType.values())
+            .filter(x => x.fuelType !== 'CNG')
+            .map(x => ({
+                label: x.label,
+                price: getRate(x.fuelType),
+                h: x.h,
+                stock: x.stock,
+                cap: x.cap,
+            }));
+    })();
 
     return (
         <div className="flex-1 overflow-auto min-h-screen" style={{ background: '#0D1117' }}>
@@ -1040,9 +1111,17 @@ export function FuelDashboard({ onNavigate }: Props) {
                             <div className="flex flex-col items-end gap-3">
                                 {/* Fuel prices from store / static reference */}
                                 <div className="flex flex-col items-end gap-1.5">
-                                    <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">
-                                        PUMP RATES (PKR/Litre)
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">
+                                            PUMP RATES (PKR/Litre)
+                                        </span>
+                                        <button
+                                            onClick={() => onNavigate('/fuel/pricing')}
+                                            className="text-[10px] font-bold text-indigo-300/90 hover:text-indigo-200 transition-colors flex items-center gap-1"
+                                        >
+                                            Manage <ChevronRight size={12} />
+                                        </button>
+                                    </div>
                                     <div className="flex items-center gap-2 flex-wrap justify-end">
                                         {pumpRates.map((f, i) => (
                                             <div
@@ -1727,6 +1806,11 @@ export function FuelDashboard({ onNavigate }: Props) {
                                                         <feMergeNode in="SourceGraphic" />
                                                     </feMerge>
                                                 </filter>
+                                                <linearGradient id="gAvg" x1="0" y1="0" x2="1" y2="0">
+                                                    <stop offset="0%" stopColor="#34D399" stopOpacity={0.15} />
+                                                    <stop offset="50%" stopColor="#34D399" stopOpacity={0.95} />
+                                                    <stop offset="100%" stopColor="#10B981" stopOpacity={0.25} />
+                                                </linearGradient>
                                             </defs>
                                             <CartesianGrid
                                                 strokeDasharray="3 3"
@@ -1775,6 +1859,17 @@ export function FuelDashboard({ onNavigate }: Props) {
                                                 }}
                                                 animationDuration={1800}
                                             />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="revMA"
+                                                name="3-Point Avg (Rs)"
+                                                stroke="url(#gAvg)"
+                                                strokeWidth={2.2}
+                                                strokeDasharray="6 6"
+                                                dot={false}
+                                                activeDot={false}
+                                                animationDuration={1600}
+                                            />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                     <div className="mt-4 pt-4 border-t border-gray-50">
@@ -1784,6 +1879,12 @@ export function FuelDashboard({ onNavigate }: Props) {
                                                 margin={{ top: 0, right: 5, left: -5, bottom: 0 }}
                                                 barSize={14}
                                             >
+                                                <defs>
+                                                    <linearGradient id="gV" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="0%" stopColor="#6366F1" stopOpacity={0.9} />
+                                                        <stop offset="100%" stopColor="#6366F1" stopOpacity={0.15} />
+                                                    </linearGradient>
+                                                </defs>
                                                 <XAxis dataKey="day" hide />
                                                 <Tooltip
                                                     content={<Tip />}
@@ -1794,14 +1895,25 @@ export function FuelDashboard({ onNavigate }: Props) {
                                                     name="Volume (L)"
                                                     radius={[4, 4, 0, 0]}
                                                     animationDuration={1600}
+                                                    fill="url(#gV)"
                                                 >
                                                     {charts.map((_, i) => (
                                                         <Cell
                                                             key={i}
-                                                            fill={`rgba(99,102,241,${0.35 + (i / charts.length) * 0.45})`}
+                                                            fill={`rgba(99,102,241,${0.38 + (i / charts.length) * 0.42})`}
                                                         />
                                                     ))}
                                                 </Bar>
+                                                <Line
+                                                    type="monotone"
+                                                    dataKey="litMA"
+                                                    name="3-Point Avg (L)"
+                                                    stroke="rgba(99,102,241,0.95)"
+                                                    strokeWidth={2}
+                                                    dot={false}
+                                                    activeDot={false}
+                                                    animationDuration={1500}
+                                                />
                                             </BarChart>
                                         </ResponsiveContainer>
                                         <p className="text-center text-[9px] font-black uppercase tracking-[0.16em] text-gray-300 mt-1">

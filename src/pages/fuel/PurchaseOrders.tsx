@@ -2,18 +2,122 @@ import { Badge, Button, Card, Input, Modal, PageHeader } from '@/components/ui';
 import { getStationId, getCurrentUserId, getCurrentUserName } from '@/lib/authHelpers';
 import { auditLogger } from '@/lib/auditLogger';
 import { useSupplierStore, useExpenseStore } from '@/stores/dataStores';
-import { useFuelStore } from '@/stores/fuelStore';
 import { useCashBankStore, useSupplierLedgerStore } from '@/stores/ledgerStore';
 import { useProfitStore } from '@/stores/profitStore';
 import { useConfigStore } from '@/stores/configStore';
 import type { FuelType, POItem, PurchaseOrder } from '@/types';
 import { format } from 'date-fns';
-import { CheckCircle2, Plus, Search, TrendingUp, Truck } from 'lucide-react';
+import { CheckCircle2, Plus, Search, Sparkles, TrendingUp, Truck, Loader2 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
+import { useSettingsStore } from '@/stores/authStore';
+import { InlineFormPanel, QuickInput, QuickSelect } from '@/components/shifts/steps/WizardCard';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const PurchaseOrdersPage: React.FC = () => {
+    const { settings } = useSettingsStore();
+
+    /* ─── Inline Supplier Quick-Register ─── */
+    const QuickAddSupplierLocal: React.FC<{
+        onCreated: (id: string, name: string) => void;
+        onCancel: () => void;
+    }> = ({ onCreated, onCancel }) => {
+        const { addSupplier } = useSupplierStore();
+        const [name, setName] = useState('');
+        const [phone, setPhone] = useState('');
+        const [type, setType] = useState<
+            'FUEL_SUPPLIER' | 'PARTS_SUPPLIER' | 'SERVICE_PROVIDER' | 'OTHER'
+        >('FUEL_SUPPLIER');
+        const [saving, setSaving] = useState(false);
+        const [err, setErr] = useState('');
+
+        const submit = async () => {
+            if (!name.trim()) {
+                setErr('Supplier name required');
+                return;
+            }
+            setSaving(true);
+            setErr('');
+            const before = useSupplierStore.getState().suppliers.map(s => s.supplierId);
+            try {
+                await addSupplier({
+                    name: name.trim(),
+                    phone: phone.trim() || '—',
+                    contactPerson: name.trim(),
+                    paymentTerms: 'NET_30',
+                    rating: 5,
+                    status: 'ACTIVE',
+                    type,
+                    stationId: getStationId(),
+                    businessUnit: settings.businessUnit as 'FUEL' | 'CNG' | 'LUBE',
+                });
+                const after = useSupplierStore.getState().suppliers;
+                const created =
+                    after.find(s => !before.includes(s.supplierId)) || after[after.length - 1];
+                onCreated(created.supplierId, created.name);
+            } catch (e: any) {
+                setErr(e?.message || 'Failed');
+            } finally {
+                setSaving(false);
+            }
+        };
+
+        return (
+            <InlineFormPanel
+                visible
+                title="Quick-Register Supplier"
+                accentColor="#3b82f6"
+                icon={<Truck size={13} style={{ color: '#3b82f6' }} />}
+            >
+                {err && <p className="text-sm font-semibold text-red-500">{err}</p>}
+                <div className="grid grid-cols-2 gap-3">
+                    <QuickInput
+                        label="Supplier Name *"
+                        placeholder="e.g. PSO Depot"
+                        value={name}
+                        onChange={e => {
+                            setName(e.target.value);
+                            setErr('');
+                        }}
+                    />
+                    <QuickInput
+                        label="Phone"
+                        placeholder="03xx-xxxxxxx"
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                    />
+                </div>
+                <QuickSelect label="Type" value={type} onChange={e => setType(e.target.value as any)}>
+                    <option value="FUEL_SUPPLIER">Fuel Supplier</option>
+                    <option value="PARTS_SUPPLIER">Parts Supplier</option>
+                    <option value="SERVICE_PROVIDER">Service Provider</option>
+                    <option value="OTHER">Other</option>
+                </QuickSelect>
+                <div className="flex gap-2 pt-1">
+                    <motion.button
+                        whileTap={{ scale: 0.96 }}
+                        onClick={submit}
+                        disabled={saving}
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black text-white uppercase tracking-widest bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/25 transition-all"
+                    >
+                        {saving ? (
+                            <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                            <Sparkles size={13} />
+                        )}
+                        {saving ? 'Saving…' : 'Register & Select'}
+                    </motion.button>
+                    <button
+                        onClick={onCancel}
+                        className="px-4 py-3 rounded-xl text-sm font-black text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors uppercase tracking-widest"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </InlineFormPanel>
+        );
+    };
+
     const { suppliers, purchaseOrders, createPurchaseOrder } = useSupplierStore();
-    const { tanks } = useFuelStore();
     const { addEntry: addCashEntry, accounts } = useCashBankStore();
     const { addEntry: addSupplierLedgerEntry } = useSupplierLedgerStore();
     const { addExpense: recordExpense } = useExpenseStore();
@@ -29,6 +133,8 @@ export const PurchaseOrdersPage: React.FC = () => {
     // Form State
     const [selectedSupplier, setSelectedSupplier] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showQuickAdd, setShowQuickAdd] = useState(false);
     const [carriage, setCarriage] = useState(0);
     const [items, setItems] = useState<Omit<POItem, 'subtotal' | 'margin'>[]>([
         {
@@ -42,7 +148,9 @@ export const PurchaseOrdersPage: React.FC = () => {
         },
     ]);
 
-    const fuelSuppliers = suppliers.filter(s => s.type === 'FUEL_SUPPLIER');
+    const fuelSuppliers = suppliers.filter(
+        s => s.type === 'FUEL_SUPPLIER' && s.businessUnit === 'FUEL' && s.status === 'ACTIVE'
+    );
 
     const totalSubtotal = useMemo(() => {
         return items.reduce((sum, item) => sum + item.quantity * item.purchaseRate, 0);
@@ -177,7 +285,6 @@ export const PurchaseOrdersPage: React.FC = () => {
             'FUEL', 
             'TANKER_ARRIVAL', 
             `Forensic Receipt: Received ${items.map(i => `${i.quantity}L ${i.productName}`).join(', ')} from ${supplier?.name}. Carriage: ₨${carriage}`,
-            getCurrentUserId(),
             `PO-${Date.now()}`
         );
 
@@ -341,23 +448,53 @@ export const PurchaseOrdersPage: React.FC = () => {
                 size="xl"
             >
                 <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">
-                                Select Supplier
-                            </label>
-                            <select
-                                className="w-full p-3 rounded-xl border bg-gray-50 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                value={selectedSupplier}
-                                onChange={e => setSelectedSupplier(e.target.value)}
-                            >
-                                <option value="">Choose Supplier...</option>
-                                {fuelSuppliers.map(s => (
-                                    <option key={s.supplierId} value={s.supplierId}>
-                                        {s.name}
-                                    </option>
-                                ))}
-                            </select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                        <div className="space-y-3">
+                            <div className="flex items-end gap-2">
+                                <div className="flex-1">
+                                    <label className="block text-[10px] font-black text-gray-400 uppercase mb-2">
+                                        Select Supplier
+                                    </label>
+                                    <select
+                                        className="w-full p-3 rounded-xl border bg-gray-50 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={selectedSupplier}
+                                        onChange={e => setSelectedSupplier(e.target.value)}
+                                    >
+                                        <option value="">Choose Supplier...</option>
+                                        {fuelSuppliers.map(s => (
+                                            <option key={s.supplierId} value={s.supplierId}>
+                                                {s.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <Button
+                                    variant="secondary"
+                                    className="h-[50px] px-4 rounded-xl border-dashed border-2 hover:border-blue-500 hover:text-blue-600"
+                                    onClick={() => setShowQuickAdd(!showQuickAdd)}
+                                >
+                                    <Plus size={18} />
+                                </Button>
+                            </div>
+
+                            <AnimatePresence>
+                                {showQuickAdd && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="overflow-hidden"
+                                    >
+                                        <QuickAddSupplierLocal
+                                            onCreated={(id) => {
+                                                setSelectedSupplier(id);
+                                                setShowQuickAdd(false);
+                                            }}
+                                            onCancel={() => setShowQuickAdd(false)}
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                         <Input
                             label="Carriage / Karaya (₨)"

@@ -91,7 +91,7 @@ export const LiquidTank: React.FC<LiquidTankProps> = ({
                         preserveAspectRatio="none"
                     >
                         <motion.path
-                            d="M0 10 Q 12.5 18 25 10 T 50 10 T 75 10 T 100 10 V 20 H 0 Z"
+                            d="M0,10Q12.5,18,25,10T50,10T75,10T100,10V20H0Z"
                             animate={{ x: ["-50%", "0%"] }}
                             transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
                         />
@@ -105,7 +105,7 @@ export const LiquidTank: React.FC<LiquidTankProps> = ({
                         preserveAspectRatio="none"
                     >
                         <motion.path
-                            d="M0 10 Q 12.5 2 25 10 T 50 10 T 75 10 T 100 10 V 20 H 0 Z"
+                            d="M0,10Q12.5,2,25,10T50,10T75,10T100,10V20H0Z"
                             animate={{ x: ["0%", "-50%"] }}
                             transition={{ repeat: Infinity, duration: 7, ease: "linear" }}
                         />

@@ -118,7 +118,9 @@ function Count({ to, p = '', s = '' }: { to: number; p?: string; s?: string }) {
         };
         r.current = requestAnimationFrame(tick);
         return () => {
-            r.current && cancelAnimationFrame(r.current);
+            if (r.current) {
+                cancelAnimationFrame(r.current);
+            }
         };
     }, [to]);
     return (

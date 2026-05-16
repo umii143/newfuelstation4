@@ -105,7 +105,11 @@ export const GlobalSearchModal = ({ isOpen, onClose, onNavigate }: { isOpen: boo
         const cmdK = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
-                isOpen ? onClose() : document.dispatchEvent(new CustomEvent('open-search'));
+                if (isOpen) {
+                    onClose();
+                } else {
+                    document.dispatchEvent(new CustomEvent('open-search'));
+                }
             }
         };
         window.addEventListener('keydown', cmdK);

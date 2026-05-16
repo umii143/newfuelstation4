@@ -47,7 +47,7 @@ export const exportToPDF = (options: PDFExportOptions) => {
     doc.text(timestamp, pageWidth - 40, 40, { align: 'right' });
 
     // Table Generation
-    autoTable(doc, {
+	    autoTable(doc, {
         head: [columns],
         body: data,
         startY: subtitle ? 90 : 80,
@@ -66,20 +66,31 @@ export const exportToPDF = (options: PDFExportOptions) => {
             fillColor: [248, 250, 252], // Slate-50
         },
         margin: { top: 40, right: 40, bottom: 60, left: 40 },
-        didDrawPage: function (data) {
-            // Forensic Watermark
-            if (isForensic) {
-                doc.saveGraphicsState();
-                doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
-                doc.setFontSize(60);
-                doc.setTextColor(220, 38, 38); // Red-600
-                doc.setFont('helvetica', 'bold');
-                doc.text('AUDIT-GRADE FORENSIC', pageWidth / 2, doc.internal.pageSize.getHeight() / 2, { 
-                    align: 'center', 
-                    angle: 45 
-                });
-                doc.restoreGraphicsState();
-            }
+        didDrawPage: function () {
+	            // Forensic Watermark
+	            if (isForensic) {
+	                const centerY = doc.internal.pageSize.getHeight() / 2;
+	                const watermarkText = 'AUDIT-GRADE FORENSIC';
+
+	                try {
+	                    // jsPDF opacity APIs can vary by version/build; guard to avoid runtime crashes.
+	                    (doc as any).saveGraphicsState?.();
+	                    if ((doc as any).GState && (doc as any).setGState) {
+	                        (doc as any).setGState(new (doc as any).GState({ opacity: 0.1 }));
+	                    }
+	                    doc.setFontSize(60);
+	                    doc.setTextColor(220, 38, 38); // Red-600
+	                    doc.setFont('helvetica', 'bold');
+	                    doc.text(watermarkText, pageWidth / 2, centerY, { align: 'center', angle: 45 });
+	                    (doc as any).restoreGraphicsState?.();
+	                } catch {
+	                    // Fallback: draw a light watermark without opacity features.
+	                    doc.setFontSize(60);
+	                    doc.setTextColor(255, 200, 200);
+	                    doc.setFont('helvetica', 'bold');
+	                    doc.text(watermarkText, pageWidth / 2, centerY, { align: 'center', angle: 45 });
+	                }
+	            }
 
             // Footer
             const str = 'Page ' + (doc as any).internal.getNumberOfPages();
@@ -90,18 +101,19 @@ export const exportToPDF = (options: PDFExportOptions) => {
         },
     });
 
-    // Signature Zone
-    if (showSignature) {
-        const finalY = (doc as any).lastAutoTable.finalY || 80;
-        const pageHeight = doc.internal.pageSize.getHeight();
-        
-        // Add new page if space is limited
-        if (finalY > pageHeight - 100) doc.addPage();
-        
-        const sigY = (doc as any).lastAutoTable.finalY + 40;
-        doc.setDrawColor(148, 163, 184);
-        doc.line(40, sigY, 240, sigY);
-        doc.line(pageWidth - 240, sigY, pageWidth - 40, sigY);
+	    // Signature Zone
+	    if (showSignature) {
+	        const finalY = (doc as any).lastAutoTable.finalY || 80;
+	        const pageHeight = doc.internal.pageSize.getHeight();
+	        
+	        // Add new page if space is limited
+	        const needsNewPage = finalY > pageHeight - 100;
+	        if (needsNewPage) doc.addPage();
+	        
+	        const sigY = needsNewPage ? 80 : finalY + 40;
+	        doc.setDrawColor(148, 163, 184);
+	        doc.line(40, sigY, 240, sigY);
+	        doc.line(pageWidth - 240, sigY, pageWidth - 40, sigY);
         
         doc.setFontSize(8);
         doc.setTextColor(30, 41, 59);

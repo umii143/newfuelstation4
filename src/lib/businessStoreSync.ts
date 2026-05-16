@@ -185,97 +185,136 @@ export const clearBusinessScopedStores = () => {
     });
 };
 
+const DEMO_DATA = {
+    staff: [{
+        userId: 'DEMO-USR-1',
+        name: 'System Administrator',
+        role: 'MANAGER',
+        status: 'ACTIVE',
+        businessUnit: 'FUEL',
+        stationId: 'STN-DEFAULT',
+        email: 'admin@motorway.com',
+        phone: '0300-1112233',
+        joinedAt: new Date().toISOString(),
+    }],
+    suppliers: [{
+        supplierId: 'DEMO-SUP-1',
+        name: 'PSO Main Terminal',
+        type: 'FUEL_SUPPLIER',
+        contactPerson: 'Zubair Ahmed',
+        phone: '042-35556677',
+        email: 'info@pso.com.pk',
+        address: 'Terminal 1, Karachi',
+        currentPayable: 0,
+        businessUnit: 'FUEL',
+        stationId: 'STN-DEFAULT',
+        createdAt: new Date().toISOString(),
+    }],
+    tanks: [{
+        tankId: 'DEMO-TNK-1',
+        name: 'Petrol Super (92)',
+        fuelType: 'PETROL_92',
+        capacity: 25000,
+        currentLevel: 12000,
+        salePrice: 280,
+        costPrice: 265,
+        minimumThresholdLevel: 5000,
+        reorderPoint: 7000,
+        isActive: true,
+        businessUnit: 'FUEL',
+        stationId: 'STN-DEFAULT',
+        lastUpdated: new Date().toISOString(),
+        nozzles: ['DEMO-NZL-1'],
+    }],
+    nozzles: [{
+        nozzleId: 'DEMO-NZL-1',
+        tankId: 'DEMO-TNK-1',
+        name: 'Dispenser 01 - Nozzle A',
+        number: 1,
+        currentReading: 154000.50,
+        status: 'ACTIVE',
+        isActive: true,
+        businessUnit: 'FUEL',
+        stationId: 'STN-DEFAULT',
+        performanceMetrics: {
+            totalLitersDispensed: 0,
+            averageDailyDispense: 1200,
+            accuracyScore: 99.8,
+            lastShiftDispense: 0,
+        },
+    }]
+};
+
 export const hydrateBusinessScopedStores = (
     data: FirestoreBusinessData,
     businessUnit: BusinessUnit
 ) => {
     const localCache = localBusinessCache[businessUnit];
+    
+    // Resilient update: Pre-existing > Firestore > Demo Fallback
+    const updateStore = (store: any, key: string, newData: any[] | undefined, demoData?: any[]) => {
+        const currentStoreState = store.getState();
+        const existingData = currentStoreState[key];
+
+        // 1. If Firestore has data, it wins
+        if (newData && newData.length > 0) {
+            store.setState({ [key]: newData });
+        } 
+        // 2. If Firestore is empty but we have existing local data, KEEP it
+        else if (existingData && existingData.length > 0) {
+            // No action needed
+        }
+        // 3. If everything is empty, inject Demo Data for A-Z Testing
+        else if (demoData && demoData.length > 0) {
+            store.setState({ [key]: demoData });
+        }
+    };
+
     const fuelTanks = filterByBusinessScope(data.tanks, businessUnit, 'FUEL');
     const tankConfigs = filterByBusinessScope(data.tankConfigs, businessUnit, 'FUEL');
     const nozzleConfigs = filterByBusinessScope(data.nozzleConfigs, businessUnit, 'FUEL');
 
-    useFuelStore.setState({
-        shifts: filterByBusinessScope(data.shifts, businessUnit, 'FUEL') as any,
-        tanks: (fuelTanks.length > 0 ? fuelTanks : tankConfigs) as any,
-        nozzles: (nozzleConfigs.length > 0 ? nozzleConfigs : localCache.nozzleConfigs) as any,
-    });
+    // Fuel Store
+    updateStore(useFuelStore, 'shifts', filterByBusinessScope(data.shifts, businessUnit, 'FUEL'));
+    updateStore(useFuelStore, 'tanks', fuelTanks.length > 0 ? fuelTanks : tankConfigs, DEMO_DATA.tanks);
+    updateStore(useFuelStore, 'nozzles', nozzleConfigs, DEMO_DATA.nozzles);
 
-    useCNGStore.setState({
-        shifts: filterByBusinessScope(data.cngShifts, businessUnit, 'CNG') as any,
-        cascades: filterByBusinessScope(data.cngCascades, businessUnit, 'CNG') as any,
-        nozzles: filterByBusinessScope(data.cngNozzles, businessUnit, 'CNG') as any,
-    });
+    // CNG Store
+    updateStore(useCNGStore, 'shifts', filterByBusinessScope(data.cngShifts, businessUnit, 'CNG'));
+    updateStore(useCNGStore, 'cascades', filterByBusinessScope(data.cngCascades, businessUnit, 'CNG'));
+    updateStore(useCNGStore, 'nozzles', filterByBusinessScope(data.cngNozzles, businessUnit, 'CNG'));
 
-    useCustomerStore.setState({
-        customers: filterByBusinessScope(data.customers, businessUnit) as any,
-    });
+    // Data Stores
+    updateStore(useCustomerStore, 'customers', filterByBusinessScope(data.customers, businessUnit));
+    updateStore(useSupplierStore, 'suppliers', filterByBusinessScope(data.suppliers, businessUnit), DEMO_DATA.suppliers);
+    updateStore(useSupplierStore, 'purchaseOrders', filterByBusinessScope(data.purchaseOrders, businessUnit));
+    updateStore(useStaffStore, 'users', filterByBusinessScope(data.staff, businessUnit), DEMO_DATA.staff);
+    updateStore(useStaffStore, 'attendance', filterByBusinessScope(data.attendance, businessUnit));
+    updateStore(useExpenseStore, 'expenses', filterByBusinessScope(data.expenses, businessUnit));
 
-    useSupplierStore.setState({
-        suppliers: filterByBusinessScope(data.suppliers, businessUnit) as any,
-        purchaseOrders: filterByBusinessScope(data.purchaseOrders, businessUnit) as any,
-    });
+    // Product Stores
+    updateStore(useProductStore, 'products', filterByBusinessScope(data.products, businessUnit));
+    updateStore(useSalesStore, 'sales', filterByBusinessScope(data.sales, businessUnit));
 
-    useStaffStore.setState({
-        users: filterByBusinessScope(data.staff, businessUnit) as any,
-        attendance: filterByBusinessScope(data.attendance, businessUnit) as any,
-    });
+    // Ledger Stores
+    updateStore(useCustomerLedgerStore, 'entries', filterByBusinessScope(data.customerLedger, businessUnit));
+    updateStore(useSupplierLedgerStore, 'entries', filterByBusinessScope(data.supplierLedger, businessUnit));
+    updateStore(useCashBankStore, 'accounts', filterByBusinessScope(data.cashBank, businessUnit));
+    updateStore(useCashBankStore, 'entries', filterByBusinessScope(data.cashLedger, businessUnit));
+    updateStore(useStaffLedgerStore, 'entries', filterByBusinessScope(data.staffLedger, businessUnit));
+    updateStore(useAuditStore, 'logs', filterByBusinessScope(data.auditLogs, businessUnit));
+    updateStore(useProfitStore, 'entries', filterByBusinessScope(data.profitEntries, businessUnit));
+    updateStore(useDiscountStore, 'discountEntries', filterByBusinessScope(data.discounts, businessUnit));
 
-    useExpenseStore.setState({
-        expenses: filterByBusinessScope(data.expenses, businessUnit) as any,
-    });
-
-    useProductStore.setState({
-        products: filterByBusinessScope(data.products, businessUnit) as any,
-    });
-
-    useSalesStore.setState({
-        sales: filterByBusinessScope(data.sales, businessUnit) as any,
-    });
-
-    usePOSStore.setState({
-        cart: [],
-        holdOrders: localCache.holdOrders as any,
-        currentCustomerId: null,
-        currentCustomerName: null,
-        discount: 0,
-    });
-
-    useCustomerLedgerStore.setState({
-        entries: filterByBusinessScope(data.customerLedger, businessUnit) as any,
-    });
-
-    useSupplierLedgerStore.setState({
-        entries: filterByBusinessScope(data.supplierLedger, businessUnit) as any,
-    });
-
-    useCashBankStore.setState({
-        accounts: filterByBusinessScope(data.cashBank, businessUnit) as any,
-        entries: filterByBusinessScope(data.cashLedger, businessUnit) as any,
-    });
-
-    useStaffLedgerStore.setState({
-        entries: filterByBusinessScope(data.staffLedger, businessUnit) as any,
-    });
-
-    useAuditStore.setState({
-        logs: filterByBusinessScope(data.auditLogs, businessUnit) as any,
-    });
-
-    useProfitStore.setState({
-        entries: filterByBusinessScope(data.profitEntries, businessUnit) as any,
-    });
-
-    useDiscountStore.setState({
-        discountEntries: filterByBusinessScope(data.discounts, businessUnit) as any,
-    });
-
+    // Config Store - preserve local/demo if cloud is empty
+    const currentConfig = useConfigStore.getState();
     useConfigStore.setState({
-        tankConfigs: (tankConfigs.length > 0 ? tankConfigs : localCache.tankConfigs) as any,
-        nozzleConfigs: (nozzleConfigs.length > 0 ? nozzleConfigs : localCache.nozzleConfigs) as any,
-        rateConfigs: localCache.rateConfigs as any,
-        rateChangeHistory: localCache.rateChangeHistory as any,
-        systemAlerts: localCache.systemAlerts as any,
-        alertConfigs: localCache.alertConfigs as any,
+        tankConfigs: tankConfigs.length > 0 ? tankConfigs : (currentConfig.tankConfigs.length > 0 ? currentConfig.tankConfigs : (localCache.tankConfigs.length > 0 ? localCache.tankConfigs : DEMO_DATA.tanks)),
+        nozzleConfigs: nozzleConfigs.length > 0 ? nozzleConfigs : (currentConfig.nozzleConfigs.length > 0 ? currentConfig.nozzleConfigs : (localCache.nozzleConfigs.length > 0 ? localCache.nozzleConfigs : DEMO_DATA.nozzles)),
+        rateConfigs: currentConfig.rateConfigs.length > 0 ? currentConfig.rateConfigs : localCache.rateConfigs,
+        rateChangeHistory: currentConfig.rateChangeHistory.length > 0 ? currentConfig.rateChangeHistory : localCache.rateChangeHistory,
+        systemAlerts: currentConfig.systemAlerts.length > 0 ? currentConfig.systemAlerts : localCache.systemAlerts,
+        alertConfigs: currentConfig.alertConfigs.length > 0 ? currentConfig.alertConfigs : localCache.alertConfigs,
         isLoading: false,
         error: null,
     });

@@ -263,7 +263,7 @@ const resolveForensicAlerts: ResolverFn = (dateRange, module, params) => {
     };
 };
 
-const resolveSecurityLogs: ResolverFn = (dateRange, module) => {
+const resolveSecurityLogs: ResolverFn = (dateRange, _module) => {
     const { logs } = useAuditStore.getState();
     const filtered = logs.filter(log => {
         const inRange = isWithinRange(log.timestamp, dateRange);

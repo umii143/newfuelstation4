@@ -405,6 +405,15 @@ export const useConfigStore = create<ConfigState>()(
                 };
 
                 set(state => ({
+                    tankConfigs: state.tankConfigs.map(tank =>
+                        tank.fuelType === fuelType
+                            ? {
+                                  ...tank,
+                                  salePrice: newRate,
+                                  lastUpdated: timestamp,
+                              }
+                            : tank
+                    ),
                     rateConfigs: state.rateConfigs.map(r =>
                         r.fuelType === fuelType
                             ? {

@@ -9,6 +9,15 @@ export default defineConfig({
         globals: true,
         environment: 'jsdom',
         setupFiles: [],
+        include: ['src/**/*.{test,spec}.{ts,tsx}'],
+        exclude: [
+            '**/node_modules/**',
+            '**/dist/**',
+            '**/.{idea,git,cache,output,temp}/**',
+            '**/src_backup_pre_v2_core/**',
+            '**/_backup_v3_ui/**',
+            '**/shift detailed plan/**',
+        ],
     },
     resolve: {
         alias: {

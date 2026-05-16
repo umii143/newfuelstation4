@@ -34,12 +34,13 @@ const getDateRangeForPreset = (preset: DatePreset): { startDate: string; endDate
                 startDate: today.toISOString(),
                 endDate: new Date(today.getTime() + 86400000).toISOString(),
             };
-        case 'YESTERDAY':
+        case 'YESTERDAY': {
             const yesterday = new Date(today.getTime() - 86400000);
             return {
                 startDate: yesterday.toISOString(),
                 endDate: today.toISOString(),
             };
+        }
         case 'LAST_7_DAYS':
             return {
                 startDate: new Date(today.getTime() - 7 * 86400000).toISOString(),
@@ -55,13 +56,14 @@ const getDateRangeForPreset = (preset: DatePreset): { startDate: string; endDate
                 startDate: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
                 endDate: now.toISOString(),
             };
-        case 'LAST_MONTH':
+        case 'LAST_MONTH': {
             const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
             const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
             return {
                 startDate: lastMonthStart.toISOString(),
                 endDate: lastMonthEnd.toISOString(),
             };
+        }
         case 'THIS_YEAR':
             return {
                 startDate: new Date(now.getFullYear(), 0, 1).toISOString(),

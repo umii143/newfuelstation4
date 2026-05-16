@@ -264,6 +264,7 @@ const App: React.FC = () => {
                 return <StationMasterPage />;
             case '/fuel/activity':
                 return <ShiftActivityPage />;
+            case '/fuel/inventory':
             case '/fuel/tanks':
                 return <TanksPage onNavigate={navigate} />;
             case '/fuel/dips':
@@ -271,7 +272,7 @@ const App: React.FC = () => {
             case '/fuel/orders':
                 return <PurchaseOrdersPage />;
             case '/fuel/pricing':
-                return <PriceManagement />;
+                return <PriceManagement onNavigate={navigate} />;
             case '/fuel/reports':
                 return <FuelReportsPage onNavigate={navigate} />;
 
@@ -350,8 +351,6 @@ const App: React.FC = () => {
                 return <CashReconciliation />;
             case '/financials/digital-cash':
                 return <DigitalCashPage />;
-            case '/financials/intelligence':
-                return <FinancialIntelligencePage />;
             case '/financials/intelligence':
                 return <FinancialIntelligencePage />;
 

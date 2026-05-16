@@ -1,90 +1,243 @@
-import { Badge, Button, Card, PageHeader } from '@/components/ui';
-import { useConfigStore } from '@/stores/configStore';
-import { useFuelStore } from '@/stores/fuelStore';
-import { useSupplierStore } from '@/stores/dataStores';
-import { useSupplierLedgerStore } from '@/stores/ledgerStore';
-import clsx from 'clsx';
-import { CheckCircle, Droplets, Gauge, History, PackagePlus, X, TrendingDown, Thermometer, ShieldAlert } from 'lucide-react';
-import React, { useState } from 'react';
+import { Badge, Button, Card, Input, PageHeader } from '@/components/ui';
 import { LiquidTank } from '@/components/fuel/LiquidTank';
-import { motion } from 'framer-motion';
+import { useConfigStore } from '@/stores/configStore';
+import clsx from 'clsx';
+import {
+    AlertTriangle,
+    Droplets,
+    Gauge,
+    PackagePlus,
+    Search,
+    Settings2,
+} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+
+const getFuelColor = (type: string) => {
+    switch (type) {
+        case 'PETROL_92':
+        case 'PETROL_95':
+            return 'emerald';
+        case 'DIESEL':
+        case 'PREMIUM_DIESEL':
+            return 'amber';
+        default:
+            return 'blue';
+    }
+};
+
+const getFillPercentage = (current: number | null, capacity: number | null) => {
+    if (!capacity) return 0;
+    return Math.min(100, Math.max(0, ((current ?? 0) / capacity) * 100));
+};
 
 export const TanksPage: React.FC<{ onNavigate?: (path: string) => void }> = ({ onNavigate }) => {
     const { tankConfigs } = useConfigStore();
-    const { shifts } = useFuelStore();
-    
-    const activeShifts = shifts.filter(s => s.status === 'OPEN');
-    const handleNavigateToOrders = () => {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [fuelFilter, setFuelFilter] = useState('ALL');
+
+    const navigateTo = (path: string) => {
         if (onNavigate) {
-            onNavigate('/fuel/orders');
-        } else {
-            window.location.href = '/fuel/orders';
+            onNavigate(path);
+            return;
         }
+        window.location.href = path;
     };
 
-    const getFuelColor = (type: string) => {
-        switch (type) {
-            case 'PETROL_92':
-            case 'PETROL_95':
-                return 'emerald';
-            case 'DIESEL':
-            case 'PREMIUM_DIESEL':
-                return 'amber';
-            default:
-                return 'blue';
-        }
-    };
+    const fuelTanks = useMemo(
+        () =>
+            tankConfigs.filter(
+                tank => tank.businessUnit === 'FUEL' && tank.isActive !== false
+            ),
+        [tankConfigs]
+    );
 
-    const getFillPercentage = (current: number | null, capacity: number | null) => {
-        if (!capacity) return 0;
-        return Math.min(100, Math.max(0, ((current ?? 0) / capacity) * 100));
-    };
+    const fuelTypeOptions = useMemo(
+        () => ['ALL', ...new Set(fuelTanks.map(tank => tank.fuelType))],
+        [fuelTanks]
+    );
 
+    const filteredTanks = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        return fuelTanks.filter(tank => {
+            const matchesQuery =
+                !query ||
+                tank.name.toLowerCase().includes(query) ||
+                tank.tankId.toLowerCase().includes(query) ||
+                tank.fuelType.toLowerCase().includes(query);
+            const matchesType = fuelFilter === 'ALL' || tank.fuelType === fuelFilter;
+            return matchesQuery && matchesType;
+        });
+    }, [fuelFilter, fuelTanks, searchQuery]);
 
+    const inventoryMetrics = useMemo(() => {
+        const totalCapacity = fuelTanks.reduce((sum, tank) => sum + (tank.capacity ?? 0), 0);
+        const totalVolume = fuelTanks.reduce((sum, tank) => sum + (tank.currentLevel ?? 0), 0);
+        const availableSpace = Math.max(0, totalCapacity - totalVolume);
+        const lowInventoryTanks = fuelTanks.filter(
+            tank =>
+                (tank.currentLevel ?? 0) <=
+                Math.max(tank.minimumThresholdLevel ?? 0, tank.reorderPoint ?? 0)
+        );
+
+        return {
+            totalCapacity,
+            totalVolume,
+            availableSpace,
+            lowInventoryTanks,
+            utilization:
+                totalCapacity > 0 ? Math.round((totalVolume / totalCapacity) * 100) : 0,
+        };
+    }, [fuelTanks]);
 
     return (
-        <div className="p-6 space-y-8 max-w-7xl mx-auto">
+        <div className="p-6 space-y-6 max-w-7xl mx-auto">
             <PageHeader
-                title="Fuel Tank Monitoring"
-                subtitle="Real-time inventory levels, dip readings and fuel receiving"
+                title="Tank Inventory"
+                subtitle="One screen for tank stock, low-level monitoring, dip workflow, and tanker receiving"
                 actions={
-                    <div className="flex gap-3">
-                        <Button variant="secondary" className="flex items-center gap-2">
+                    <div className="flex flex-wrap gap-3">
+                        <Button
+                            variant="secondary"
+                            className="flex items-center gap-2"
+                            onClick={() => navigateTo('/fuel/dips')}
+                        >
                             <Gauge size={18} />
                             Record Dip
                         </Button>
                         <Button
+                            variant="secondary"
+                            className="flex items-center gap-2"
+                            onClick={() => navigateTo('/fuel/station-master')}
+                        >
+                            <Settings2 size={18} />
+                            Configure Tanks
+                        </Button>
+                        <Button
                             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/20"
-                            onClick={handleNavigateToOrders}
+                            onClick={() => navigateTo('/fuel/orders')}
                         >
                             <PackagePlus size={18} />
-                            Receive Tanker (PO)
+                            Receive Tanker
                         </Button>
                     </div>
                 }
             />
 
-            {/* Tank Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {tankConfigs.length === 0 && (
-                    <div className="col-span-3 text-center py-16 text-[var(--text-secondary)]">
-                        <Droplets size={48} className="mx-auto mb-3 opacity-20" />
-                        <p>No tanks configured yet. Add tanks in Settings.</p>
+            {inventoryMetrics.lowInventoryTanks.length > 0 && (
+                <Card className="p-4 border-amber-300 bg-amber-50/80">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="text-amber-600 mt-0.5" size={20} />
+                            <div>
+                                <p className="font-bold text-amber-900">
+                                    {inventoryMetrics.lowInventoryTanks.length} tank
+                                    {inventoryMetrics.lowInventoryTanks.length > 1 ? 's are' : ' is'} near refill threshold
+                                </p>
+                                <p className="text-sm text-amber-800">
+                                    Reorder fuel from the tanker receipt flow before pump availability is affected.
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            className="bg-amber-600 hover:bg-amber-700 text-white"
+                            onClick={() => navigateTo('/fuel/orders')}
+                        >
+                            Open Purchase Orders
+                        </Button>
                     </div>
+                </Card>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="p-5">
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                        Current Stock
+                    </p>
+                    <p className="mt-2 text-3xl font-black text-slate-900">
+                        {inventoryMetrics.totalVolume.toLocaleString()}
+                        <span className="ml-1 text-base font-bold text-slate-500">L</span>
+                    </p>
+                </Card>
+                <Card className="p-5">
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                        Total Capacity
+                    </p>
+                    <p className="mt-2 text-3xl font-black text-slate-900">
+                        {inventoryMetrics.totalCapacity.toLocaleString()}
+                        <span className="ml-1 text-base font-bold text-slate-500">L</span>
+                    </p>
+                </Card>
+                <Card className="p-5">
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                        Available Space
+                    </p>
+                    <p className="mt-2 text-3xl font-black text-slate-900">
+                        {inventoryMetrics.availableSpace.toLocaleString()}
+                        <span className="ml-1 text-base font-bold text-slate-500">L</span>
+                    </p>
+                </Card>
+                <Card className="p-5">
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                        Utilization
+                    </p>
+                    <p className="mt-2 text-3xl font-black text-slate-900">
+                        {inventoryMetrics.utilization}
+                        <span className="ml-1 text-base font-bold text-slate-500">%</span>
+                    </p>
+                </Card>
+            </div>
+
+            <Card className="p-4">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-4">
+                    <div className="relative">
+                        <Search
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                            size={16}
+                        />
+                        <Input
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Search by tank name, tank ID, or fuel type"
+                            className="pl-10"
+                        />
+                    </div>
+                    <select
+                        value={fuelFilter}
+                        onChange={e => setFuelFilter(e.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-3 font-semibold text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        {fuelTypeOptions.map(option => (
+                            <option key={option} value={option}>
+                                {option === 'ALL' ? 'All Fuel Types' : option.replace(/_/g, ' ')}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredTanks.length === 0 && (
+                    <Card className="col-span-full p-12 text-center">
+                        <Droplets size={42} className="mx-auto mb-3 text-slate-300" />
+                        <p className="text-lg font-bold text-slate-800">No tank inventory found</p>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Adjust the search/filter or configure tanks from Station Master.
+                        </p>
+                    </Card>
                 )}
-                {tankConfigs.map(tank => {
+
+                {filteredTanks.map(tank => {
                     const color = getFuelColor(tank.fuelType);
-                    const percentage = getFillPercentage(
-                        tank.currentLevel ?? 0,
-                        tank.capacity ?? 0
-                    );
+                    const percentage = getFillPercentage(tank.currentLevel ?? 0, tank.capacity ?? 0);
+                    const isLow =
+                        (tank.currentLevel ?? 0) <=
+                        Math.max(tank.minimumThresholdLevel ?? 0, tank.reorderPoint ?? 0);
 
                     return (
                         <Card
                             key={tank.tankId}
-                            className="group relative overflow-hidden border-2 hover:border-blue-500/50 transition-all duration-300"
+                            className="group relative overflow-hidden border-2 hover:border-blue-500/40 transition-all duration-300"
                         >
-                            {/* Background Fill Animation */}
                             <div
                                 className={clsx(
                                     'absolute bottom-0 left-0 w-full transition-all duration-1000 opacity-10',
@@ -97,10 +250,10 @@ export const TanksPage: React.FC<{ onNavigate?: (path: string) => void }> = ({ o
                                 style={{ height: `${percentage}%` }}
                             />
 
-                            <div className="relative p-6 space-y-6">
-                                <div className="flex justify-between items-start">
+                            <div className="relative p-6 space-y-5">
+                                <div className="flex justify-between items-start gap-3">
                                     <div>
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex flex-wrap items-center gap-2 mb-2">
                                             <Badge
                                                 color={
                                                     color === 'emerald'
@@ -112,17 +265,13 @@ export const TanksPage: React.FC<{ onNavigate?: (path: string) => void }> = ({ o
                                             >
                                                 {tank.fuelType.replace('_', ' ')}
                                             </Badge>
-                                            {percentage < 20 && (
-                                                <Badge color="rose" className="animate-pulse">
-                                                    LOW LEVEL
-                                                </Badge>
-                                            )}
+                                            {isLow && <Badge color="rose">Low Inventory</Badge>}
                                         </div>
                                         <h3 className="text-xl font-bold text-[var(--text-primary)]">
                                             {tank.name}
                                         </h3>
                                         <p className="text-xs text-[var(--text-secondary)]">
-                                            ID: {tank.tankId}
+                                            {tank.tankId}
                                         </p>
                                     </div>
                                     <div
@@ -135,192 +284,149 @@ export const TanksPage: React.FC<{ onNavigate?: (path: string) => void }> = ({ o
                                                   : 'bg-blue-500/10 text-blue-500'
                                         )}
                                     >
-                                        <Droplets size={24} />
+                                        <Droplets size={22} />
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <div className="flex justify-between items-end">
-                                        <span className="text-4xl font-black text-[var(--text-primary)] tracking-tight">
+                                <div className="flex items-end justify-between">
+                                    <div>
+                                        <p className="text-4xl font-black text-[var(--text-primary)]">
                                             {(tank.currentLevel ?? 0).toLocaleString()}
-                                            <span className="text-lg font-medium text-[var(--text-secondary)] ml-1">
+                                            <span className="ml-1 text-lg font-semibold text-[var(--text-secondary)]">
                                                 L
                                             </span>
-                                        </span>
-                                        <div className="text-right">
-                                            <span className="text-sm font-bold text-[var(--text-secondary)]">
-                                                Capacity
-                                            </span>
-                                            <p className="text-sm font-medium text-[var(--text-primary)]">
-                                                {(tank.capacity ?? 0).toLocaleString()} L
-                                            </p>
-                                        </div>
+                                        </p>
+                                        <p className="text-xs text-[var(--text-secondary)] mt-1">
+                                            Capacity {(tank.capacity ?? 0).toLocaleString()} L
+                                        </p>
                                     </div>
+                                    <div className="text-right">
+                                        <p className="text-xs font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                                            Fill
+                                        </p>
+                                        <p className="text-lg font-black text-[var(--text-primary)]">
+                                            {percentage.toFixed(0)}%
+                                        </p>
+                                    </div>
+                                </div>
 
-                                    {/* Ultra High-Fidelity Liquid Animation */}
-                                    <div className="mb-6">
-                                        <LiquidTank
-                                            percentage={percentage}
-                                            color={color as any}
-                                            label={tank.name}
-                                            currentLevel={tank.currentLevel || 0}
-                                            capacity={tank.capacity || 0}
-                                            isFlowing={activeShifts.length > 0}
-                                            flowDirection="out"
-                                        />
-                                    </div>
+                                <LiquidTank
+                                    percentage={percentage}
+                                    color={color as 'emerald' | 'amber' | 'blue'}
+                                    label={tank.name}
+                                    currentLevel={tank.currentLevel || 0}
+                                    capacity={tank.capacity || 0}
+                                    isFlowing={false}
+                                    flowDirection="out"
+                                />
 
-                                <div className="pt-4 border-t border-[var(--border)]">
-                                    <div className="mb-3">
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-2">Forensic Telemetry</p>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <div className="bg-[var(--bg-surface)] p-2 rounded-xl border border-[var(--border)]">
-                                                <p className="text-[9px] uppercase font-bold text-[var(--text-secondary)]">
-                                                    Last Arrival
-                                                </p>
-                                                <p className="text-xs font-bold text-[var(--text-primary)] truncate mt-0.5">
-                                                    {new Date(tank.lastUpdated || Date.now()).toLocaleDateString('en-PK')}
-                                                </p>
-                                            </div>
-                                            <div className="bg-[var(--bg-surface)] p-2 rounded-xl border border-[var(--border)]">
-                                                <p className="text-[9px] uppercase font-bold text-[var(--text-secondary)]">
-                                                    Avg Stock Rate
-                                                </p>
-                                                <p className="text-xs font-bold text-[var(--text-primary)] truncate mt-0.5">
-                                                    ₨{tank.costPrice?.toFixed(2) || '0.00'}
-                                                </p>
-                                            </div>
-                                            <div className="bg-[var(--bg-surface)] p-2 rounded-xl border border-[var(--border)]">
-                                                <p className="text-[9px] uppercase font-bold text-[var(--text-secondary)]">
-                                                    Est. Dead Stock
-                                                </p>
-                                                <p className="text-xs font-bold text-rose-500 truncate mt-0.5">
-                                                    {((tank.capacity ?? 0) * 0.02).toFixed(0)} L
-                                                </p>
-                                            </div>
-                                        </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                                            Reorder Point
+                                        </p>
+                                        <p className="mt-1 text-sm font-bold text-[var(--text-primary)]">
+                                            {(tank.reorderPoint ?? 0).toLocaleString()} L
+                                        </p>
                                     </div>
-                                    <div className="flex justify-between items-center pt-3 border-t border-[var(--border)]">
-                                        <div className="grid grid-cols-2 gap-4 flex-1">
-                                        <div>
-                                            <p className="text-[10px] uppercase font-bold text-[var(--text-secondary)]">
-                                                Available Space
-                                            </p>
-                                            <p className="text-sm font-bold text-[var(--text-primary)]">
-                                                {(
-                                                    (tank.capacity ?? 0) - (tank.currentLevel ?? 0)
-                                                ).toLocaleString()}{' '}
-                                                L
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] uppercase font-bold text-[var(--text-secondary)]">
-                                                Reorder Point
-                                            </p>
-                                            <p className="text-sm font-bold text-[var(--text-primary)]">
-                                                {(tank.reorderPoint ?? 0).toLocaleString()} L
-                                            </p>
-                                        </div>
+                                    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                                            Free Space
+                                        </p>
+                                        <p className="mt-1 text-sm font-bold text-[var(--text-primary)]">
+                                            {Math.max(
+                                                0,
+                                                (tank.capacity ?? 0) - (tank.currentLevel ?? 0)
+                                            ).toLocaleString()}{' '}
+                                            L
+                                        </p>
                                     </div>
+                                </div>
+
+                                <div className="flex gap-2 pt-1">
                                     <Button
                                         size="sm"
                                         variant="secondary"
-                                        className="text-emerald-600 border-emerald-300 hover:bg-emerald-50 ml-4"
-                                        onClick={handleNavigateToOrders}
+                                        className="flex-1"
+                                        onClick={() => navigateTo('/fuel/dips')}
                                     >
-                                        <PackagePlus size={14} className="mr-1" />
+                                        Record Dip
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                                        onClick={() => navigateTo('/fuel/orders')}
+                                    >
                                         Receive
                                     </Button>
-                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </Card>
+                        </Card>
                     );
                 })}
             </div>
 
-
-
-            {/* History Section */}
             <Card className="p-0 overflow-hidden">
-                <div className="p-6 border-b border-[var(--border)] flex justify-between items-center bg-[var(--bg-elevated)]">
-                    <h3 className="font-bold text-lg text-[var(--text-primary)] flex items-center gap-2">
-                        <History size={20} className="text-blue-500" />
-                        Tank Summary
+                <div className="p-5 border-b border-[var(--border)] bg-[var(--bg-elevated)]">
+                    <h3 className="font-bold text-lg text-[var(--text-primary)]">
+                        Inventory Summary
                     </h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-[var(--bg-surface)] text-[var(--text-secondary)] uppercase tracking-wider font-bold text-xs">
                             <tr>
-                                <th className="px-6 py-4">Tank Name</th>
+                                <th className="px-6 py-4">Tank</th>
                                 <th className="px-6 py-4">Fuel Type</th>
-                                <th className="px-6 py-4 text-right">Current Level</th>
+                                <th className="px-6 py-4 text-right">Current</th>
                                 <th className="px-6 py-4 text-right">Capacity</th>
                                 <th className="px-6 py-4 text-right">Fill %</th>
-                                <th className="px-6 py-4 text-right">Available Space</th>
+                                <th className="px-6 py-4 text-right">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-[var(--border)]">
-                            {tankConfigs.map(tank => {
-                                const pct = getFillPercentage(tank.currentLevel, tank.capacity);
+                        <tbody>
+                            {filteredTanks.map(tank => {
+                                const percentage = getFillPercentage(
+                                    tank.currentLevel ?? 0,
+                                    tank.capacity ?? 0
+                                );
+                                const isLow =
+                                    (tank.currentLevel ?? 0) <=
+                                    Math.max(tank.minimumThresholdLevel ?? 0, tank.reorderPoint ?? 0);
+
                                 return (
                                     <tr
                                         key={tank.tankId}
-                                        className="hover:bg-[var(--bg-elevated)] transition-colors"
+                                        className="border-t border-[var(--border)] hover:bg-[var(--bg-surface)]"
                                     >
-                                        <td className="px-6 py-4 font-semibold text-[var(--text-primary)]">
-                                            {tank.name}
+                                        <td className="px-6 py-4">
+                                            <div className="font-bold text-[var(--text-primary)]">
+                                                {tank.name}
+                                            </div>
+                                            <div className="text-xs text-[var(--text-secondary)]">
+                                                {tank.tankId}
+                                            </div>
                                         </td>
-                                        <td className="px-6 py-4 text-[var(--text-secondary)]">
-                                            <Badge
-                                                color={
-                                                    getFuelColor(tank.fuelType) as
-                                                        | 'emerald'
-                                                        | 'amber'
-                                                        | 'blue'
-                                                }
-                                            >
-                                                {tank.fuelType.replace('_', ' ')}
-                                            </Badge>
+                                        <td className="px-6 py-4">
+                                            {tank.fuelType.replace('_', ' ')}
                                         </td>
-                                        <td className="px-6 py-4 text-right font-bold font-mono text-[var(--text-primary)]">
+                                        <td className="px-6 py-4 text-right font-bold">
                                             {(tank.currentLevel ?? 0).toLocaleString()} L
                                         </td>
-                                        <td className="px-6 py-4 text-right text-[var(--text-secondary)]">
+                                        <td className="px-6 py-4 text-right">
                                             {(tank.capacity ?? 0).toLocaleString()} L
                                         </td>
+                                        <td className="px-6 py-4 text-right">{percentage.toFixed(0)}%</td>
                                         <td className="px-6 py-4 text-right">
-                                            <span
-                                                className={clsx(
-                                                    'font-semibold',
-                                                    pct < 20
-                                                        ? 'text-rose-500'
-                                                        : pct < 50
-                                                          ? 'text-amber-500'
-                                                          : 'text-emerald-500'
-                                                )}
-                                            >
-                                                {pct.toFixed(1)}%
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right text-[var(--text-secondary)]">
-                                            {(
-                                                (tank.capacity ?? 0) - (tank.currentLevel ?? 0)
-                                            ).toLocaleString()}{' '}
-                                            L
+                                            <Badge color={isLow ? 'rose' : 'emerald'}>
+                                                {isLow ? 'Reorder' : 'Healthy'}
+                                            </Badge>
                                         </td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
-                    {tankConfigs.length === 0 && (
-                        <div className="p-12 text-center text-[var(--text-secondary)]">
-                            <p>No tanks configured. Add tanks via Settings.</p>
-                        </div>
-                    )}
                 </div>
             </Card>
         </div>

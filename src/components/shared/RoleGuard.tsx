@@ -15,8 +15,8 @@ export const RoleGuard: React.FC<RoleGuardProps> = ({ children, allowedRoles, fe
     const isAllowed = allowedRoles.map(r => r.toUpperCase()).includes(currentRole);
 
     React.useEffect(() => {
-        if (isAuthenticated && !isAllowed) {
-            console.warn(`[SECURITY] Unauthorized access attempt to ${featureName} by ${user?.name} (Role: ${currentRole})`);
+        if (user && !isAllowed) {
+            console.warn(`[SECURITY] Unauthorized access attempt to ${featureName} by ${user?.email} (Role: ${currentRole})`);
             auditLogger.log('SECURITY', 'UNAUTHORIZED_ACCESS', `Unauthorized access attempt to ${featureName} by role ${currentRole}`, featureName);
         }
     }, [isAuthenticated, isAllowed, currentRole, user, featureName]);

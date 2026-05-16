@@ -39,7 +39,7 @@ export const POSPage = () => {
     const { adjustStock } = useProductStore();
     const { cart, addToCart, updateCartItem, clearCart, getSubtotal } = usePOSStore();
     const { addSale } = useSalesStore();
-    const { customers } = useCustomerStore();
+    const { customers, addCustomer, isLoading: isCustomerLoading } = useCustomerStore();
     const { addEntry: addCustomerLedgerEntry } = useCustomerLedgerStore();
 
     const [activeCategory, setActiveCategory] = useState<'ALL' | string>('ALL');
@@ -51,6 +51,16 @@ export const POSPage = () => {
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
+    const [quickAddError, setQuickAddError] = useState<string | null>(null);
+    const [newCustomer, setNewCustomer] = useState({
+        name: '',
+        phone: '',
+        cnic: '',
+        creditLimit: 0,
+        paymentTerms: 'CASH' as const,
+        status: 'ACTIVE' as const,
+    });
 
     const lubeProducts = products.filter(
         p => p.category !== 'FUEL_PETROL' && p.category !== 'FUEL_DIESEL'
@@ -620,26 +630,229 @@ export const POSPage = () => {
                                 className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
                             >
                                 <div className="sticky top-0 bg-white border-b border-gray-200 p-6 z-10 flex items-center justify-between">
-                                    <div>
-                                        <h3 className="text-2xl font-black text-gray-900">
-                                            Select Customer
-                                        </h3>
-                                        <p className="text-sm text-gray-500 mt-1">
-                                            Required for credit sales
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => setShowCustomerModal(false)}
-                                        className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </button>
-                                </div>
-                                <div className="p-6 space-y-3">
-                                    {customers.length === 0 ? (
-                                        <div className="text-center py-10 text-gray-400">
-                                            <User className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                            <p className="font-semibold">No customers yet</p>
+	                                    <div>
+	                                        <h3 className="text-2xl font-black text-gray-900">
+	                                            Select Customer
+	                                        </h3>
+	                                        <p className="text-sm text-gray-500 mt-1">
+	                                            Required for credit sales
+	                                        </p>
+	                                    </div>
+	                                    <button
+	                                        onClick={() => {
+	                                            setQuickAddError(null);
+	                                            setShowQuickAddCustomer(v => !v);
+	                                        }}
+	                                        className="px-4 py-2 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors font-bold text-sm flex items-center gap-2"
+	                                        type="button"
+	                                    >
+	                                        <UserPlus className="w-4 h-4" />
+	                                        Quick Add
+	                                    </button>
+	                                    <button
+	                                        onClick={() => setShowCustomerModal(false)}
+	                                        className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-colors"
+	                                    >
+	                                        <X className="w-5 h-5" />
+	                                    </button>
+	                                </div>
+	                                <div className="p-6 space-y-3">
+	                                    {showQuickAddCustomer && (
+	                                        <div className="border border-indigo-200 bg-indigo-50/40 rounded-2xl p-4">
+	                                            <div className="flex items-center justify-between mb-3">
+	                                                <div>
+	                                                    <p className="font-black text-gray-900">
+	                                                        Create Customer
+	                                                    </p>
+	                                                    <p className="text-xs text-gray-500">
+	                                                        Adds customer without leaving POS
+	                                                    </p>
+	                                                </div>
+	                                                <button
+	                                                    onClick={() => setShowQuickAddCustomer(false)}
+	                                                    className="p-2 rounded-xl bg-white/70 hover:bg-white transition-colors"
+	                                                    type="button"
+	                                                >
+	                                                    <X className="w-4 h-4" />
+	                                                </button>
+	                                            </div>
+
+	                                            {quickAddError && (
+	                                                <div className="mb-3 text-sm font-bold text-red-600">
+	                                                    {quickAddError}
+	                                                </div>
+	                                            )}
+
+	                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+	                                                <div>
+	                                                    <label className="text-xs font-bold text-gray-600">
+	                                                        Name *
+	                                                    </label>
+	                                                    <input
+	                                                        value={newCustomer.name}
+	                                                        onChange={e =>
+	                                                            setNewCustomer(s => ({
+	                                                                ...s,
+	                                                                name: e.target.value,
+	                                                            }))
+	                                                        }
+	                                                        className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+	                                                        placeholder="Customer name"
+	                                                    />
+	                                                </div>
+	                                                <div>
+	                                                    <label className="text-xs font-bold text-gray-600">
+	                                                        Phone *
+	                                                    </label>
+	                                                    <input
+	                                                        value={newCustomer.phone}
+	                                                        onChange={e =>
+	                                                            setNewCustomer(s => ({
+	                                                                ...s,
+	                                                                phone: e.target.value,
+	                                                            }))
+	                                                        }
+	                                                        className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+	                                                        placeholder="03xx-xxxxxxx"
+	                                                    />
+	                                                </div>
+	                                                <div>
+	                                                    <label className="text-xs font-bold text-gray-600">
+	                                                        CNIC (optional)
+	                                                    </label>
+	                                                    <input
+	                                                        value={newCustomer.cnic}
+	                                                        onChange={e =>
+	                                                            setNewCustomer(s => ({
+	                                                                ...s,
+	                                                                cnic: e.target.value,
+	                                                            }))
+	                                                        }
+	                                                        className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+	                                                        placeholder="xxxxx-xxxxxxx-x"
+	                                                    />
+	                                                </div>
+	                                                <div>
+	                                                    <label className="text-xs font-bold text-gray-600">
+	                                                        Credit Limit
+	                                                    </label>
+	                                                    <input
+	                                                        value={newCustomer.creditLimit}
+	                                                        onChange={e =>
+	                                                            setNewCustomer(s => ({
+	                                                                ...s,
+	                                                                creditLimit: Number(e.target.value || 0),
+	                                                            }))
+	                                                        }
+	                                                        className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+	                                                        type="number"
+	                                                        min={0}
+	                                                        step={1}
+	                                                    />
+	                                                </div>
+	                                            </div>
+
+	                                            <div className="mt-4 flex items-center justify-end gap-2">
+	                                                <button
+	                                                    onClick={() => {
+	                                                        setNewCustomer({
+	                                                            name: '',
+	                                                            phone: '',
+	                                                            cnic: '',
+	                                                            creditLimit: 0,
+	                                                            paymentTerms: 'CASH',
+	                                                            status: 'ACTIVE',
+	                                                        });
+	                                                        setQuickAddError(null);
+	                                                    }}
+	                                                    className="px-4 py-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-colors font-bold text-sm"
+	                                                    type="button"
+	                                                >
+	                                                    Clear
+	                                                </button>
+	                                                <button
+	                                                    disabled={
+	                                                        isCustomerLoading ||
+	                                                        !newCustomer.name.trim() ||
+	                                                        !newCustomer.phone.trim()
+	                                                    }
+	                                                    onClick={async () => {
+	                                                        if (
+	                                                            !newCustomer.name.trim() ||
+	                                                            !newCustomer.phone.trim()
+	                                                        ) {
+	                                                            setQuickAddError(
+	                                                                'Name and phone are required'
+	                                                            );
+	                                                            return;
+	                                                        }
+
+	                                                        setQuickAddError(null);
+	                                                        try {
+	                                                            await addCustomer({
+	                                                                stationId: '',
+	                                                                name: newCustomer.name.trim(),
+	                                                                phone: newCustomer.phone.trim(),
+	                                                                cnic: newCustomer.cnic.trim() || undefined,
+	                                                                creditLimit: Number(
+	                                                                    newCustomer.creditLimit || 0
+	                                                                ),
+	                                                                paymentTerms: newCustomer.paymentTerms,
+	                                                                status: newCustomer.status,
+	                                                                businessUnit: 'LUBE',
+	                                                            });
+
+	                                                            const nextCustomers =
+	                                                                useCustomerStore.getState().customers;
+	                                                            const matches = [...nextCustomers]
+	                                                                .filter(
+	                                                                    c =>
+	                                                                        c.name ===
+	                                                                            newCustomer.name.trim() &&
+	                                                                        c.phone ===
+	                                                                            newCustomer.phone.trim()
+	                                                                )
+	                                                                .sort((a, b) =>
+	                                                                    a.createdAt > b.createdAt ? 1 : -1
+	                                                                );
+	                                                            const created =
+	                                                                matches.length > 0
+	                                                                    ? matches[matches.length - 1]
+	                                                                    : undefined;
+
+	                                                            if (created) {
+	                                                                setSelectedCustomer(created);
+	                                                                setShowCustomerModal(false);
+	                                                            }
+
+	                                                            setShowQuickAddCustomer(false);
+	                                                            setNewCustomer({
+	                                                                name: '',
+	                                                                phone: '',
+	                                                                cnic: '',
+	                                                                creditLimit: 0,
+	                                                                paymentTerms: 'CASH',
+	                                                                status: 'ACTIVE',
+	                                                            });
+	                                                        } catch (e: any) {
+	                                                            setQuickAddError(
+	                                                                e?.message || 'Failed to add customer'
+	                                                            );
+	                                                        }
+	                                                    }}
+	                                                    className="px-4 py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors font-black text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+	                                                    type="button"
+	                                                >
+	                                                    <Plus className="w-4 h-4" />
+	                                                    Create
+	                                                </button>
+	                                            </div>
+	                                        </div>
+	                                    )}
+	                                    {customers.length === 0 ? (
+	                                        <div className="text-center py-10 text-gray-400">
+	                                            <User className="w-12 h-12 mx-auto mb-3 opacity-30" />
+	                                            <p className="font-semibold">No customers yet</p>
                                             <p className="text-sm">
                                                 Add customers in Financials → Customers
                                             </p>

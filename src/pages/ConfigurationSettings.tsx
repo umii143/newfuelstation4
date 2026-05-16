@@ -382,11 +382,11 @@ const StationProfileTab: React.FC = () => {
                                 Member Since
                             </p>
                             <p className="text-slate-600 font-medium">
-                                {new Date(stationConfig.createdAt).toLocaleDateString(undefined, {
+                                {stationConfig?.createdAt ? new Date(stationConfig.createdAt).toLocaleDateString(undefined, {
                                     year: 'numeric',
                                     month: 'long',
                                     day: 'numeric',
-                                })}
+                                }) : 'N/A'}
                             </p>
                         </div>
                     </Card>

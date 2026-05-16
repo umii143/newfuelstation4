@@ -66,6 +66,7 @@ const App: React.FC = () => {
     const { settings } = useSettingsStore();
     const [currentPath, setCurrentPath] = useState('/');
     const [authInitialized, setAuthInitialized] = useState(false);
+    const [cloudSyncTimeout, setCloudSyncTimeout] = useState(false);
 
     // Apply Theme to HTML — 3-mode: light / dark / bloomberg
     useEffect(() => {
@@ -205,6 +206,18 @@ const App: React.FC = () => {
     const { isLoading: isFirestoreLoading } = useFirestoreInit();
 
     useEffect(() => {
+        if (isAuthenticated && isFirestoreLoading) {
+            const timer = setTimeout(() => {
+                console.warn('Cloud synchronization taking too long, proceeding with local cache...');
+                setCloudSyncTimeout(true);
+            }, 1500);
+            return () => clearTimeout(timer);
+        } else {
+            setCloudSyncTimeout(false);
+        }
+    }, [isAuthenticated, isFirestoreLoading]);
+
+    useEffect(() => {
         const handleLocationChange = () => {
             setCurrentPath(window.location.pathname);
         };
@@ -252,7 +265,7 @@ const App: React.FC = () => {
             case '/fuel/activity':
                 return <ShiftActivityPage />;
             case '/fuel/tanks':
-                return <TanksPage />;
+                return <TanksPage onNavigate={navigate} />;
             case '/fuel/dips':
                 return <DipManagementPage />;
             case '/fuel/orders':
@@ -370,7 +383,7 @@ const App: React.FC = () => {
         }
     };
 
-    if (isAuthenticated && isFirestoreLoading) {
+    if (isAuthenticated && isFirestoreLoading && !cloudSyncTimeout) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-[#f1f5f9]">
                 <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />

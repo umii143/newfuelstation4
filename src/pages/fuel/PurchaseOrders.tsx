@@ -1,8 +1,9 @@
 import { Badge, Button, Card, Input, Modal, PageHeader } from '@/components/ui';
 import { getStationId, getCurrentUserId, getCurrentUserName } from '@/lib/authHelpers';
-import { useSupplierStore } from '@/stores/dataStores';
+import { auditLogger } from '@/lib/auditLogger';
+import { useSupplierStore, useExpenseStore } from '@/stores/dataStores';
 import { useFuelStore } from '@/stores/fuelStore';
-import { useCashBankStore } from '@/stores/ledgerStore';
+import { useCashBankStore, useSupplierLedgerStore } from '@/stores/ledgerStore';
 import { useProfitStore } from '@/stores/profitStore';
 import { useConfigStore } from '@/stores/configStore';
 import type { FuelType, POItem, PurchaseOrder } from '@/types';
@@ -12,14 +13,12 @@ import React, { useMemo, useState } from 'react';
 
 export const PurchaseOrdersPage: React.FC = () => {
     const { suppliers, purchaseOrders, createPurchaseOrder } = useSupplierStore();
-    const { tanks, updateTank } = useFuelStore();
-    const { addEntry: addExpenseEntry, accounts } = useCashBankStore();
+    const { tanks } = useFuelStore();
+    const { addEntry: addCashEntry, accounts } = useCashBankStore();
+    const { addEntry: addSupplierLedgerEntry } = useSupplierLedgerStore();
+    const { addExpense: recordExpense } = useExpenseStore();
     const { addProfitEntry } = useProfitStore();
-
-    const [searchTerm, setSearchTerm] = useState('');
-    const [showCreateModal, setShowCreateModal] = useState(false);
-
-    const { tankConfigs, rateConfigs } = useConfigStore();
+    const { tankConfigs, rateConfigs, updateTankLevel } = useConfigStore();
     const getSalePrice = (fuelType: string) => {
         const rateConfig = rateConfigs.find(r => r.fuelType === fuelType);
         if (rateConfig) return rateConfig.currentRate;
@@ -29,6 +28,7 @@ export const PurchaseOrdersPage: React.FC = () => {
 
     // Form State
     const [selectedSupplier, setSelectedSupplier] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
     const [carriage, setCarriage] = useState(0);
     const [items, setItems] = useState<Omit<POItem, 'subtotal' | 'margin'>[]>([
         {
@@ -101,10 +101,10 @@ export const PurchaseOrdersPage: React.FC = () => {
 
         createPurchaseOrder(newPO);
 
-        // Record Carriage as an Expense
+        // 1. Record Carriage as an Expense in Cash Ledger
         const cashAccount = accounts.find(a => a.type === 'CASH');
-        if (cashAccount) {
-            addExpenseEntry({
+        if (cashAccount && carriage > 0) {
+            addCashEntry({
                 accountId: cashAccount.accountId,
                 accountName: cashAccount.name,
                 date: new Date().toISOString().split('T')[0],
@@ -117,11 +117,41 @@ export const PurchaseOrdersPage: React.FC = () => {
                 credit: 0,
                 counterpartyType: 'SUPPLIER',
                 counterpartyName: supplier?.name || 'Fuel Transport',
-                remarks: `Carriage/Karaya for Fuel Tanker (PO: ${supplier?.name})`,
+                remarks: `Carriage/Karaya for Fuel Tanker (PO from ${supplier?.name})`,
+            });
+
+            // 2. Also record in Expense Store for the Expenses Tab
+            recordExpense({
+                expenseId: `EXP-CARR-${Date.now()}`,
+                category: 'Carriage & Freight',
+                amount: carriage,
+                description: `Carriage/Karaya for Fuel Tanker arrival from ${supplier?.name}`,
+                paymentMethod: 'CASH',
+                paidTo: supplier?.name || 'Transport Company',
+                expenseDate: new Date().toISOString().split('T')[0],
+                approvedById: getCurrentUserId(),
             });
         }
 
-        // Sync Profit
+        // 3. Record Fuel Purchase in Supplier Ledger (Credit to Supplier)
+        if (supplier && totalSubtotal > 0) {
+            addSupplierLedgerEntry({
+                supplierId: supplier.supplierId,
+                supplierName: supplier.name,
+                date: new Date().toISOString().split('T')[0],
+                shiftId: 'ADMIN',
+                staffId: getCurrentUserId(),
+                staffName: getCurrentUserName(),
+                type: 'PURCHASE',
+                reference: `PO-ARRIVAL`,
+                invoiceNumber: `INV-${Date.now()}`,
+                debit: 0,
+                credit: totalSubtotal,
+                remarks: `Fuel Tanker Arrival: ${items.map(i => `${i.quantity}L ${i.productName}`).join(', ')}`,
+            });
+        }
+
+        // 4. Sync Profit
         addProfitEntry({
             date: new Date().toISOString().split('T')[0],
             type: 'FUEL_PURCHASE',
@@ -133,13 +163,23 @@ export const PurchaseOrdersPage: React.FC = () => {
             netProfit: -carriage, // Initial cost is the carriage. Margin realized on sale.
         });
 
-        // Update Tank Stock (for fuelStation logic, we assume instant receipt for this simple demo)
+        // 5. Update Tank Stock in useConfigStore (Master Source)
         items.forEach(item => {
-            const tank = tanks.find(t => t.fuelType === (item.productId as FuelType));
+            const tank = tankConfigs.find(t => t.fuelType === (item.productId as FuelType));
             if (tank) {
-                updateTank(tank.tankId, { currentLevel: tank.currentLevel + item.quantity });
+                const newLevel = (tank.currentLevel || 0) + item.quantity;
+                updateTankLevel(tank.tankId, newLevel);
             }
         });
+
+        // 6. Audit Logging
+        auditLogger.log(
+            'FUEL', 
+            'TANKER_ARRIVAL', 
+            `Forensic Receipt: Received ${items.map(i => `${i.quantity}L ${i.productName}`).join(', ')} from ${supplier?.name}. Carriage: ₨${carriage}`,
+            getCurrentUserId(),
+            `PO-${Date.now()}`
+        );
 
         setShowCreateModal(false);
         resetForm();

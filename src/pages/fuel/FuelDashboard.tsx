@@ -6,6 +6,7 @@
 import { useAuthStore } from '@/stores/authStore';
 import { useStaffStore } from '@/stores/dataStores';
 import { useFuelStore } from '@/stores/fuelStore';
+import { LiquidTank } from '@/components/fuel/LiquidTank';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Activity,
@@ -2002,7 +2003,55 @@ export function FuelDashboard({ onNavigate }: Props) {
                         </motion.div>
                     </div>
 
-                    {/* â”€â”€ BOTTOM ROW â”€â”€ */}
+                    {/* ── ULTRA-LEVEL TANK TELEMETRY ── */}
+                    <motion.div variants={I} className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-black text-gray-900 tracking-tight">Reservoir Telemetry</h2>
+                                <p className="text-[11px] text-gray-400 font-medium uppercase tracking-widest">Live Liquid Dynamics · Forensic Stock Tracking</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="px-3 py-1.5 rounded-xl bg-white border border-gray-100 shadow-sm flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[10px] font-black text-gray-500 uppercase">Atomic Sync Active</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {config.tankConfigs.length === 0 && (
+                                <div className="col-span-full p-12 text-center bg-gray-50 rounded-3xl border-2 border-dashed">
+                                    <p className="text-gray-400 font-bold uppercase tracking-widest text-[10px]">No tanks configured in system</p>
+                                </div>
+                            )}
+                            {config.tankConfigs.map((t, i) => {
+                                const pct = t.capacity ? ((t.currentLevel || 0) / t.capacity) * 100 : 0;
+                                const color = FH[t.fuelType] === 'amber' ? 'amber' : 
+                                              FH[t.fuelType] === 'rose' ? 'rose' : 
+                                              FH[t.fuelType] === 'blue' ? 'blue' : 'emerald';
+                                
+                                return (
+                                    <motion.div 
+                                        key={t.tankId}
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: 0.2 + i * 0.1 }}
+                                    >
+                                        <LiquidTank 
+                                            percentage={pct}
+                                            color={color as any}
+                                            label={t.name || t.fuelType.replace('_', ' ')}
+                                            currentLevel={t.currentLevel || 0}
+                                            capacity={t.capacity || 10000}
+                                            isFlowing={a.openCt > 0}
+                                            flowDirection="out"
+                                        />
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
+
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                         {/* Recent Shifts */}
                         <motion.div

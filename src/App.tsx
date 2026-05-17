@@ -6,7 +6,7 @@ import { useAuthStore, useSettingsStore } from '@/stores/authStore';
 import { useFirestoreInit } from '@/hooks/useFirestoreInit';
 import React, { Suspense, useEffect, useState } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/db';
+import { COLLECTIONS, db } from '@/lib/db';
 import { ToastContainer } from '@/components/ui/ToastContainer';
 
 // ── Lazy-loaded pages (code splitting) ──────────────────────
@@ -61,6 +61,32 @@ const OwnerStockManagement = React.lazy(() => import('@/pages/owner/StockManagem
 const FraudIntelligencePage = React.lazy(() => import('@/pages/owner/FraudIntelligence').then(m => ({ default: m.FraudIntelligence })));
 const StationStockReceipt = React.lazy(() => import('@/pages/station/StockReceipt').then(m => ({ default: m.StockReceipt })));
 
+interface FirestoreUserProfile {
+    stationId?: string;
+    role?: string;
+    businessUnit?: string;
+}
+
+const submitAccessRequest = async (
+    userId: string,
+    email: string,
+    name: string,
+    businessUnit: string
+) => {
+    await setDoc(
+        doc(db, COLLECTIONS.ACCESS_REQUESTS, userId),
+        {
+            userId,
+            email,
+            name,
+            businessUnit,
+            status: 'PENDING',
+            requestedAt: new Date().toISOString(),
+        },
+        { merge: true }
+    );
+};
+
 const App: React.FC = () => {
     const { isAuthenticated, checkAuth } = useAuthStore();
     const { settings } = useSettingsStore();
@@ -109,35 +135,28 @@ const App: React.FC = () => {
                                 setTimeout(() => reject(new Error('Firestore connection timeout')), 5000)
                             );
                             
-                            let userStationId = 'STN-001';
-                            let userRole = 'MANAGER';
-                            
-                            try {
-                                const userSnap = await Promise.race([
-                                    getDoc(userRef),
-                                    timeoutPromise
-                                ]) as any;
-                                
-                                if (userSnap.exists()) {
-                                    const data = userSnap.data();
-                                    userStationId = data.stationId || 'STN-001';
-                                    userRole = data.role || 'MANAGER';
-                                } else {
-                                    // First time login - provision their profile (also with timeout)
-                                    await Promise.race([
-                                        setDoc(userRef, {
-                                            email: user.email,
-                                            name: user.displayName || user.email || 'Admin',
-                                            role: userRole,
-                                            stationId: 'STN-001',
-                                            createdAt: new Date().toISOString()
-                                        }),
-                                        timeoutPromise
-                                    ]);
-                                }
-                            } catch (firestoreError) {
-                                console.warn('Firestore fetch timed out or failed, using defaults:', firestoreError);
-                                // Continue with default userStationId
+                            const userSnap = (await Promise.race([
+                                getDoc(userRef),
+                                timeoutPromise,
+                            ])) as Awaited<ReturnType<typeof getDoc>>;
+
+                            if (!userSnap.exists()) {
+                                await submitAccessRequest(
+                                    user.uid,
+                                    user.email || '',
+                                    user.displayName || user.email || 'User',
+                                    localStorage.getItem('businessUnit') || 'FUEL'
+                                );
+                                throw new Error(
+                                    'Access request submitted. Ask an administrator to approve your station profile.'
+                                );
+                            }
+
+                            const userProfile = userSnap.data() as FirestoreUserProfile;
+                            if (!userProfile.stationId || !userProfile.role) {
+                                throw new Error(
+                                    'Your user profile is incomplete. Station access cannot be determined.'
+                                );
                             }
 
                             // Firebase user detected, update auth store
@@ -148,26 +167,26 @@ const App: React.FC = () => {
                                     name: user.displayName || user.email || 'User',
                                     email: user.email || '',
                                     phone: user.phoneNumber || '',
-                                    role: typeof userRole !== 'undefined' ? userRole : 'MANAGER',
+                                    role: userProfile.role,
                                     theme: 'glassy-white',
                                     language: 'en',
-                                    businessUnit: localStorage.getItem('businessUnit') || 'FUEL',
-                                    stationId: userStationId,
-                                    organizationId: user.uid, // use Firebase UID as org until backend is connected
+                                    businessUnit:
+                                        userProfile.businessUnit ||
+                                        localStorage.getItem('businessUnit') ||
+                                        'FUEL',
+                                    stationId: userProfile.stationId,
+                                    organizationId: user.uid,
                                 },
                             });
                         } catch (err) {
                             console.error('Failed to fetch user profile:', err);
-                            // Fallback if firestore fails
                             useAuthStore.setState({
-                                isAuthenticated: true,
-                                user: {
-                                    userId: user.uid,
-                                    name: user.displayName || 'User',
-                                    email: user.email || '',
-                                    phone: '', role: 'MANAGER', theme: 'glassy-white', language: 'en',
-                                    businessUnit: 'FUEL', stationId: 'STN-001', organizationId: user.uid
-                                }
+                                isAuthenticated: false,
+                                user: null,
+                                error:
+                                    err instanceof Error
+                                        ? err.message
+                                        : 'Unable to load your access profile.',
                             });
                         }
                     } else {

@@ -2,10 +2,14 @@ import { useCustomerStore, useSupplierStore } from '@/stores/dataStores';
 import { useFuelStore } from '@/stores/fuelStore';
 import { useCashBankStore } from '@/stores/ledgerStore';
 import { useSettingsStore, useAuthStore } from '@/stores/authStore';
+import { useScheduleStore } from '@/stores/scheduleStore';
+import { Button, Card } from '@/components/ui';
+import { useToastStore } from '@/stores/toastStore';
 import { getBusinessMeta } from '@/lib/businessScope';
-import { hasReportPermission } from '@/lib/roleHelpers';
+import { canManageReportSchedules, hasReportPermission } from '@/lib/roleHelpers';
 import { Customer, Supplier, Tank } from '@/types';
 import clsx from 'clsx';
+import { format } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     ArrowDownLeft,
@@ -14,9 +18,15 @@ import {
     ChevronRight,
     FileText as FileIcon,
     PieChart,
+    Play,
+    Pause,
+    History,
     Search,
     ShieldCheck,
+    Trash2,
     Wallet,
+    BellRing,
+    Rocket,
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { REPORT_CATEGORIES, REPORT_REGISTRY } from './ReportRegistry';
@@ -29,7 +39,11 @@ export const ReportsPage: React.FC = () => {
     const { entries: cashEntries } = useCashBankStore();
     const { settings } = useSettingsStore();
     const { user } = useAuthStore();
+    const { schedules, runLogs, toggleScheduleStatus, deleteSchedule, runScheduleNow, getSchedulesForModule, getRunLogsForModule } =
+        useScheduleStore();
+    const toast = useToastStore();
     const activeBusiness = getBusinessMeta(settings.businessUnit);
+    const canManageSchedules = canManageReportSchedules(user?.role);
 
     const [activeCategory, setActiveCategory] = useState<string>('SALES');
     const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -181,6 +195,26 @@ export const ReportsPage: React.FC = () => {
         );
     }, [activeCategory, searchTerm, permittedReports]);
 
+    const visibleSchedules = useMemo(
+        () => getSchedulesForModule(activeModule),
+        [activeModule, getSchedulesForModule, schedules]
+    );
+
+    const activeSchedules = visibleSchedules.filter(schedule => schedule.status === 'ACTIVE');
+    const recentRunLogs = useMemo(
+        () => getRunLogsForModule(activeModule).slice(0, 5),
+        [activeModule, getRunLogsForModule, runLogs]
+    );
+    const totalRecipientsCovered = useMemo(
+        () =>
+            visibleSchedules.reduce((total, schedule) => total + schedule.recipients.length, 0),
+        [visibleSchedules]
+    );
+    const lastManualRun = useMemo(
+        () => recentRunLogs.find(log => log.triggeredBy === 'MANUAL'),
+        [recentRunLogs]
+    );
+
     useEffect(() => {
         const firstVisibleCategory = REPORT_CATEGORIES.find(category => category.module === activeModule);
         const activeCategoryStillVisible = visibleCategories.some(category => category.id === activeCategory);
@@ -254,7 +288,7 @@ export const ReportsPage: React.FC = () => {
                                     setDateRange({ ...dateRange, start: new Date(e.target.value) })
                                 }
                             />
-                            <span className="text-slate-400 font-bold">â†’</span>
+                            <span className="text-slate-400 font-bold">?</span>
                             <input
                                 type="date"
                                 className="text-[11px] font-bold text-slate-700 dark:text-slate-300 outline-none bg-transparent hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer transition-colors [color-scheme:light] dark:[color-scheme:dark] min-h-[44px]"
@@ -345,6 +379,261 @@ export const ReportsPage: React.FC = () => {
                         </div>
                     </motion.div>
                 ))}
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_1.9fr] gap-4 md:gap-6">
+                <Card className="p-6 md:p-7 bg-white/85 dark:bg-[#0B1015]/85 backdrop-blur-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <BellRing size={18} className="text-blue-600 dark:text-blue-400" />
+                                <p className="text-xs font-black uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">
+                                    Automation Command Center
+                                </p>
+                            </div>
+                            <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white mt-2">
+                                Scheduled Report Runs
+                            </h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                Review live automations for {activeBusiness.label.toLowerCase()} reporting.
+                            </p>
+                        </div>
+                        <div className="px-3 py-1 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-black uppercase tracking-widest">
+                            {visibleSchedules.length} Total
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mt-6">
+                        <div className="rounded-2xl border border-emerald-200/70 dark:border-emerald-800/60 bg-emerald-50/70 dark:bg-emerald-900/20 px-4 py-4">
+                            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-600 dark:text-emerald-400">
+                                Active Jobs
+                            </p>
+                            <p className="text-2xl font-black text-emerald-900 dark:text-emerald-300 mt-2">
+                                {activeSchedules.length}
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border border-amber-200/70 dark:border-amber-800/60 bg-amber-50/70 dark:bg-amber-900/20 px-4 py-4">
+                            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-600 dark:text-amber-400">
+                                Paused Jobs
+                            </p>
+                            <p className="text-2xl font-black text-amber-900 dark:text-amber-300 mt-2">
+                                {visibleSchedules.length - activeSchedules.length}
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border border-blue-200/70 dark:border-blue-800/60 bg-blue-50/70 dark:bg-blue-900/20 px-4 py-4">
+                            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-blue-600 dark:text-blue-400">
+                                Delivery Reach
+                            </p>
+                            <p className="text-2xl font-black text-blue-900 dark:text-blue-300 mt-2">
+                                {totalRecipientsCovered}
+                            </p>
+                        </div>
+                        <div className="rounded-2xl border border-violet-200/70 dark:border-violet-800/60 bg-violet-50/70 dark:bg-violet-900/20 px-4 py-4">
+                            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-violet-600 dark:text-violet-400">
+                                Last Manual Run
+                            </p>
+                            <p className="text-sm font-black text-violet-900 dark:text-violet-300 mt-2">
+                                {lastManualRun
+                                    ? format(new Date(lastManualRun.triggeredAt), 'dd MMM, hh:mm a')
+                                    : 'No manual run'}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 px-4 py-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400 dark:text-slate-500">
+                            Next Dispatch Window
+                        </p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white mt-2">
+                            {activeSchedules[0]
+                                ? format(new Date(activeSchedules[0].nextRunAt), 'dd MMM yyyy, hh:mm a')
+                                : 'No active schedule queued'}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            End-to-end delivery is stored locally and ready for backend mail runner wiring.
+                        </p>
+                    </div>
+
+                    <div className="mt-6">
+                        <div className="flex items-center gap-2 mb-3">
+                            <History size={16} className="text-slate-400 dark:text-slate-500" />
+                            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
+                                Recent Run History
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            {recentRunLogs.length > 0 ? (
+                                recentRunLogs.map(log => (
+                                    <div
+                                        key={log.id}
+                                        className="rounded-xl border border-slate-200/70 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/40 px-3 py-3"
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                                                    {log.reportName}
+                                                </p>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                                    {log.triggeredBy} run at {format(new Date(log.triggeredAt), 'dd MMM, hh:mm a')}
+                                                </p>
+                                            </div>
+                                            <span
+                                                className={clsx(
+                                                    'px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.24em]',
+                                                    log.status === 'SUCCESS'
+                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                                )}
+                                            >
+                                                {log.status}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2 mt-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                                            <span>{log.format}</span>
+                                            <span>•</span>
+                                            <span>{log.recipients.length} recipients</span>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/30 px-4 py-4 text-sm text-slate-500 dark:text-slate-400">
+                                    No delivery history yet. Trigger a manual run from the queue.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="p-4 md:p-5 bg-white/85 dark:bg-[#0B1015]/85 backdrop-blur-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm">
+                    <div className="flex items-center justify-between gap-3 px-2 pb-4">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">
+                                Delivery Queue
+                            </p>
+                            <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white mt-1">
+                                Scheduled Reports
+                            </h3>
+                        </div>
+                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                            {activeModule} scope
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        {visibleSchedules.length > 0 ? (
+                            visibleSchedules.map(schedule => (
+                                <div
+                                    key={schedule.id}
+                                    className="rounded-2xl border border-slate-200/70 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/40 px-4 py-4"
+                                >
+                                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    onClick={() => setSelectedReportId(schedule.reportId)}
+                                                    className="text-left text-sm font-black text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                                >
+                                                    {schedule.reportName}
+                                                </button>
+                                                <span
+                                                    className={clsx(
+                                                        'px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.24em]',
+                                                        schedule.status === 'ACTIVE'
+                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                                    )}
+                                                >
+                                                    {schedule.status}
+                                                </span>
+                                                <span className="px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-[0.24em] bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                    {schedule.format}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-slate-500 dark:text-slate-400">
+                                                <span>Frequency: {schedule.frequency.replace(/_/g, ' ')}</span>
+                                                <span>Module: {schedule.module}</span>
+                                                <span>Next run: {format(new Date(schedule.nextRunAt), 'dd MMM, hh:mm a')}</span>
+                                            </div>
+                                            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 break-all">
+                                                Recipients: {schedule.recipients.join(', ')}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Button
+                                                variant="primary"
+                                                size="sm"
+                                                onClick={async () => {
+                                                    const queued = await runScheduleNow(schedule.id);
+                                                    if (queued) {
+                                                        toast.success(
+                                                            'Manual run queued',
+                                                            `${schedule.reportName} saved to Firebase for ${schedule.recipients.length} recipient(s).`
+                                                        );
+                                                    }
+                                                }}
+                                                disabled={!canManageSchedules}
+                                                icon={<Rocket size={14} />}
+                                            >
+                                                Run Now
+                                            </Button>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={async () => {
+                                                    const updated = await toggleScheduleStatus(schedule.id);
+                                                    if (updated) {
+                                                        toast.success(
+                                                            schedule.status === 'ACTIVE' ? 'Schedule paused' : 'Schedule resumed',
+                                                            `${schedule.reportName} was updated in Firebase.`
+                                                        );
+                                                    }
+                                                }}
+                                                disabled={!canManageSchedules}
+                                                icon={
+                                                    schedule.status === 'ACTIVE' ? (
+                                                        <Pause size={14} />
+                                                    ) : (
+                                                        <Play size={14} />
+                                                    )
+                                                }
+                                            >
+                                                {schedule.status === 'ACTIVE' ? 'Pause' : 'Resume'}
+                                            </Button>
+                                            <Button
+                                                variant="danger"
+                                                size="sm"
+                                                onClick={async () => {
+                                                    const deleted = await deleteSchedule(schedule.id);
+                                                    if (deleted) {
+                                                        toast.success(
+                                                            'Schedule removed',
+                                                            `${schedule.reportName} was removed from Firebase.`
+                                                        );
+                                                    }
+                                                }}
+                                                disabled={!canManageSchedules}
+                                                icon={<Trash2 size={14} />}
+                                            >
+                                                Remove
+                                            </Button>
+                                        </div>
+                                        </div>
+                                    </div>
+                            ))
+                        ) : (
+                            <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 px-6 py-10 text-center">
+                                <BellRing size={28} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+                                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                    No schedules configured for this business yet
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                                    Open any report and use the schedule action to create automated runs.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </Card>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -607,3 +896,4 @@ export const ReportsPage: React.FC = () => {
         </div>
     );
 };
+

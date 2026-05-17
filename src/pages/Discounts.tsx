@@ -94,16 +94,20 @@ export const DiscountsPage: React.FC = () => {
             return;
         }
 
-        addDiscount({
-            shiftId: 'current-shift', // Would come from active shift
-            customerName: newDiscount.customerName || undefined,
-            amount: newDiscount.amount,
-            discountType: newDiscount.discountType,
-            reason: newDiscount.reason,
-            reasonNote: newDiscount.reasonNote || undefined,
-            createdBy: (user as any)?.id || 'unknown',
-            createdByName: (user as any)?.name || 'Unknown',
-        });
+        try {
+            addDiscount({
+                shiftId: 'current-shift', // Would come from active shift
+                customerName: newDiscount.customerName || undefined,
+                amount: newDiscount.amount,
+                discountType: newDiscount.discountType,
+                reason: newDiscount.reason,
+                reasonNote: newDiscount.reasonNote || undefined,
+                createdBy: (user as any)?.id || 'unknown',
+                createdByName: (user as any)?.name || 'Unknown',
+            });
+        } catch {
+            return;
+        }
 
         setShowAddModal(false);
         setNewDiscount({

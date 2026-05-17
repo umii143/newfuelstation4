@@ -2,10 +2,12 @@ import type { DiscountEntry, DiscountLimits, DiscountReason } from '@/types';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getStationId } from '@/lib/authHelpers';
+import { canCreateDiscount, canManageDiscountApprovals } from '@/lib/roleHelpers';
 import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
 import { useSettingsStore } from './authStore';
 import { stampBusinessScope } from '@/lib/businessScope';
+import { useToastStore } from '@/stores/toastStore';
 // ============================================
 // DISCOUNT MANAGEMENT STORE
 // Handles discount entries, approvals, and analytics
@@ -82,6 +84,14 @@ export const useDiscountStore = create<DiscountState>()(
             error: null,
 
             addDiscount: entry => {
+                const currentRole = useSettingsStore.getState().user?.role;
+                if (!canCreateDiscount(currentRole)) {
+                    useToastStore
+                        .getState()
+                        .error('Access denied', 'Your role cannot create discount entries.');
+                    throw new Error('Unauthorized discount creation');
+                }
+
                 const { discountLimits } = get();
                 const id = `disc-${Date.now()}`;
 
@@ -108,6 +118,13 @@ export const useDiscountStore = create<DiscountState>()(
             },
 
             approveDiscount: (id, approvedBy, approvedByName, note) => {
+                const currentRole = useSettingsStore.getState().user?.role;
+                if (!canManageDiscountApprovals(currentRole)) {
+                    useToastStore
+                        .getState()
+                        .error('Access denied', 'Only authorized staff can approve discounts.');
+                    return;
+                }
                 set(state => {
                     const updatedEntries = state.discountEntries.map(entry =>
                         entry.id === id
@@ -132,6 +149,13 @@ export const useDiscountStore = create<DiscountState>()(
             },
 
             rejectDiscount: (id, approvedBy, approvedByName, note) => {
+                const currentRole = useSettingsStore.getState().user?.role;
+                if (!canManageDiscountApprovals(currentRole)) {
+                    useToastStore
+                        .getState()
+                        .error('Access denied', 'Only authorized staff can reject discounts.');
+                    return;
+                }
                 set(state => {
                     const updatedEntries = state.discountEntries.map(entry =>
                         entry.id === id

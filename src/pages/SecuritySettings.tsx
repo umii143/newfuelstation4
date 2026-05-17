@@ -1,9 +1,11 @@
-import { Button, Card, PageHeader } from '@/components/ui';
-import { useAuthStore } from '@/stores/authStore';
+import { Button, Card, Input, PageHeader } from '@/components/ui';
+import { type AccessRequest, useAuthStore } from '@/stores/authStore';
+import { useToastStore } from '@/stores/toastStore';
 import { format } from 'date-fns';
 import {
     Activity,
     AlertCircle,
+    Check,
     CheckCircle2,
     ChevronRight,
     Clock,
@@ -12,29 +14,52 @@ import {
     Globe,
     Lock,
     Monitor,
+    ShieldCheck,
     Search,
     Shield,
     Smartphone,
     Trash2,
+    XCircle,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 const SecuritySettings: React.FC = () => {
-    const { user, sessions, auditLogs, fetchSessions, fetchAuditLogs, terminateSession, isAdmin } =
-        useAuthStore();
+    const {
+        user,
+        sessions,
+        auditLogs,
+        accessRequests,
+        fetchSessions,
+        fetchAuditLogs,
+        terminateSession,
+        fetchAccessRequests,
+        approveAccessRequest,
+        rejectAccessRequest,
+        isAdmin,
+        isManager,
+    } = useAuthStore();
+    const toast = useToastStore();
 
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterAction] = useState('ALL');
+    const [requestStations, setRequestStations] = useState<Record<string, string>>({});
+    const [requestRoles, setRequestRoles] = useState<Record<string, string>>({});
+    const [requestBusy, setRequestBusy] = useState<Record<string, boolean>>({});
+    const canReviewRequests = isAdmin() || isManager();
 
     useEffect(() => {
         const loadData = async () => {
             setIsLoading(true);
-            await Promise.all([fetchSessions(), fetchAuditLogs()]);
+            await Promise.all([
+                fetchSessions(),
+                fetchAuditLogs(),
+                canReviewRequests ? fetchAccessRequests() : Promise.resolve(),
+            ]);
             setIsLoading(false);
         };
         loadData();
-    }, [fetchSessions, fetchAuditLogs]);
+    }, [canReviewRequests, fetchSessions, fetchAuditLogs, fetchAccessRequests]);
 
     const getDeviceIcon = (userAgent: string | null) => {
         if (!userAgent) return <Monitor className="w-5 h-5" />;
@@ -63,6 +88,53 @@ const SecuritySettings: React.FC = () => {
         const matchesAction = filterAction === 'ALL' || log.action === filterAction;
         return matchesSearch && matchesAction;
     });
+
+    const pendingRequests = accessRequests.filter(request => request.status === 'PENDING');
+    const getDecisionStation = (request: AccessRequest) =>
+        requestStations[request.userId] ||
+        request.requestedStationId ||
+        request.stationId ||
+        ('stationId' in (user || {}) ? user?.stationId || '' : '');
+    const getDecisionRole = (request: AccessRequest) =>
+        requestRoles[request.userId] || request.role || 'ATTENDANT';
+
+    const handleApprove = async (request: AccessRequest) => {
+        const stationId = getDecisionStation(request).trim();
+        const role = getDecisionRole(request).trim().toUpperCase();
+
+        if (!stationId) {
+            toast.error('Station required', 'Assign a station ID before approving access.');
+            return;
+        }
+
+        setRequestBusy(state => ({ ...state, [request.userId]: true }));
+        try {
+            await approveAccessRequest(request.userId, { stationId, role });
+            toast.success('Access approved', `${request.name} can now access station ${stationId}.`);
+        } catch (error) {
+            toast.error(
+                'Approval failed',
+                error instanceof Error ? error.message : 'Unable to approve access request.'
+            );
+        } finally {
+            setRequestBusy(state => ({ ...state, [request.userId]: false }));
+        }
+    };
+
+    const handleReject = async (request: AccessRequest) => {
+        setRequestBusy(state => ({ ...state, [request.userId]: true }));
+        try {
+            await rejectAccessRequest(request.userId);
+            toast.info('Request rejected', `${request.name}'s access request was rejected.`);
+        } catch (error) {
+            toast.error(
+                'Rejection failed',
+                error instanceof Error ? error.message : 'Unable to reject access request.'
+            );
+        } finally {
+            setRequestBusy(state => ({ ...state, [request.userId]: false }));
+        }
+    };
 
     if (isLoading) {
         return (
@@ -187,6 +259,126 @@ const SecuritySettings: React.FC = () => {
 
                 {/* Right Column: Audit Logs */}
                 <div className="lg:col-span-2 space-y-6">
+                    {canReviewRequests && (
+                        <Card className="p-6 bg-white/70 backdrop-blur-xl border border-emerald-100 shadow-xl">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+                                <div>
+                                    <h3 className="text-lg font-bold flex items-center gap-2 text-[var(--text-primary)]">
+                                        <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                                        Access Requests
+                                    </h3>
+                                    <p className="text-sm text-[var(--text-secondary)] mt-1">
+                                        Review pending Firebase sign-ins before they can enter a station.
+                                    </p>
+                                </div>
+                                <div className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-widest">
+                                    {pendingRequests.length} Pending
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                {pendingRequests.map(request => (
+                                    <div
+                                        key={request.userId}
+                                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                                    >
+                                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                                            <div className="space-y-2 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-sm font-bold text-[var(--text-primary)]">
+                                                        {request.name}
+                                                    </span>
+                                                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase tracking-widest">
+                                                        Pending
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-[var(--text-secondary)] break-all">
+                                                    {request.email}
+                                                </p>
+                                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                                                    <span>Business: {request.businessUnit}</span>
+                                                    <span>
+                                                        Requested {format(new Date(request.requestedAt), 'dd MMM, HH:mm')}
+                                                    </span>
+                                                    <span>ID: {request.userId}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid sm:grid-cols-2 gap-3 w-full lg:w-[420px]">
+                                                <Input
+                                                    label="Station ID"
+                                                    value={getDecisionStation(request)}
+                                                    onChange={e =>
+                                                        setRequestStations(state => ({
+                                                            ...state,
+                                                            [request.userId]: e.target.value,
+                                                        }))
+                                                    }
+                                                    placeholder="STN-001"
+                                                />
+                                                <div>
+                                                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+                                                        Role
+                                                    </label>
+                                                    <select
+                                                        className="w-full px-4 py-3 rounded-lg min-h-[44px] bg-[var(--bg-surface)] border-2 border-[var(--border)] text-[var(--text-primary)] focus:outline-none focus:border-accent-blue focus:ring-2 focus:ring-blue-500/20"
+                                                        value={getDecisionRole(request)}
+                                                        onChange={e =>
+                                                            setRequestRoles(state => ({
+                                                                ...state,
+                                                                [request.userId]: e.target.value,
+                                                            }))
+                                                        }
+                                                    >
+                                                        <option value="OWNER">OWNER</option>
+                                                        <option value="MANAGER">MANAGER</option>
+                                                        <option value="CASHIER">CASHIER</option>
+                                                        <option value="ATTENDANT">ATTENDANT</option>
+                                                        <option value="AUDITOR">AUDITOR</option>
+                                                        <option value="SALESMAN">SALESMAN</option>
+                                                        <option value="CLERK">CLERK</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap justify-end gap-2 mt-4">
+                                            <Button
+                                                variant="ghost"
+                                                className="text-rose-600 hover:bg-rose-50"
+                                                loading={requestBusy[request.userId]}
+                                                onClick={() => handleReject(request)}
+                                            >
+                                                <XCircle className="w-4 h-4" />
+                                                Reject
+                                            </Button>
+                                            <Button
+                                                variant="success"
+                                                loading={requestBusy[request.userId]}
+                                                onClick={() => handleApprove(request)}
+                                            >
+                                                <Check className="w-4 h-4" />
+                                                Approve Access
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {pendingRequests.length === 0 && (
+                                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 p-8 text-center">
+                                        <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
+                                        <p className="text-sm font-semibold text-slate-700">
+                                            No pending access requests
+                                        </p>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            New SSO users will appear here until a manager approves them.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        </Card>
+                    )}
+
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <h3 className="text-lg font-bold flex items-center gap-2 text-[var(--text-primary)]">
                             <Activity className="w-5 h-5 text-indigo-500" />

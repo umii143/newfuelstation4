@@ -45,6 +45,21 @@ interface Station {
     isActive: boolean;
 }
 
+export interface AccessRequest {
+    userId: string;
+    email: string;
+    name: string;
+    businessUnit: string;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    requestedAt: string;
+    requestedStationId?: string;
+    stationId?: string;
+    role?: string;
+    resolvedAt?: string;
+    resolvedBy?: string;
+    rejectionReason?: string;
+}
+
 interface Settings {
     theme: string;
     language: string;
@@ -90,6 +105,7 @@ interface AuthState {
     // Security state
     sessions: any[];
     auditLogs: any[];
+    accessRequests: AccessRequest[];
 
     // Authentication methods
     loginWithPIN: (pin: string, users: StaffUser[]) => Promise<boolean>;
@@ -106,6 +122,9 @@ interface AuthState {
     fetchSessions: () => Promise<void>;
     fetchAuditLogs: () => Promise<void>;
     terminateSession: (sessionId: string) => Promise<void>;
+    fetchAccessRequests: () => Promise<void>;
+    approveAccessRequest: (requestId: string, decision: { stationId: string; role: string }) => Promise<void>;
+    rejectAccessRequest: (requestId: string, reason?: string) => Promise<void>;
 
     // Legacy method for backward compatibility
     login: (emailOrPin: string, passwordOrUsers?: string | StaffUser[]) => Promise<boolean | void>;
@@ -146,6 +165,7 @@ const defaultSettings: Settings = {
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+const normalizeRole = (role?: string | null): string => (role || '').toUpperCase();
 
 export const useAuthStore = create<AuthState>()(
     persist(
@@ -164,6 +184,7 @@ export const useAuthStore = create<AuthState>()(
             authMethod: null,
             sessions: [],
             auditLogs: [],
+            accessRequests: [],
 
             // PIN-based login (local authentication)
             loginWithPIN: async (pin: string, users: StaffUser[]) => {
@@ -176,25 +197,7 @@ export const useAuthStore = create<AuthState>()(
                 }
 
                 // Find user by PIN
-                let foundUser = users.find(u => u.pin === pin && u.status === 'ACTIVE');
-
-                // MASTER OVERRIDE: Allow entry on fresh deployments where localStorage is empty
-                if (!foundUser && pin === '9999') {
-                    foundUser = {
-                        userId: 'master-admin',
-                        name: 'System Admin',
-                        email: 'admin@motorway.com',
-                        phone: '0000000000',
-                        role: 'admin',
-                        theme: 'glassy-white',
-                        language: 'en',
-                        businessUnit: 'FUEL',
-                        organizationId: 'default-org',
-                        stationId: 'STN-001',
-                        status: 'ACTIVE',
-                        pin: '9999'
-                    } as any;
-                }
+                const foundUser = users.find(u => u.pin === pin && u.status === 'ACTIVE');
 
                 if (!foundUser) {
                     const newFailedAttempts = state.failedAttempts + 1;
@@ -395,10 +398,12 @@ export const useAuthStore = create<AuthState>()(
             },
 
             // Role helpers
-            isAdmin: () => get().user?.role === 'admin',
-            isManager: () => ['admin', 'manager'].includes(get().user?.role || ''),
+            isAdmin: () => normalizeRole(get().user?.role) === 'ADMIN',
+            isManager: () => ['ADMIN', 'MANAGER'].includes(normalizeRole(get().user?.role)),
             isStaff: () =>
-                ['admin', 'manager', 'operator', 'staff'].includes(get().user?.role || ''),
+                ['ADMIN', 'MANAGER', 'OPERATOR', 'STAFF'].includes(
+                    normalizeRole(get().user?.role)
+                ),
 
             // Security actions
             fetchSessions: async () => {
@@ -428,6 +433,113 @@ export const useAuthStore = create<AuthState>()(
                 }
             },
 
+            fetchAccessRequests: async () => {
+                try {
+                    const [{ collection, getDocs, orderBy, query }, { COLLECTIONS, db }] =
+                        await Promise.all([
+                            import('firebase/firestore'),
+                            import('@/lib/db'),
+                        ]);
+
+                    const snapshot = await getDocs(
+                        query(collection(db, COLLECTIONS.ACCESS_REQUESTS), orderBy('requestedAt', 'desc'))
+                    );
+
+                    set({
+                        accessRequests: snapshot.docs.map(doc => {
+                            const data = doc.data() as AccessRequest;
+                            return {
+                                ...data,
+                                userId: data.userId || doc.id,
+                            };
+                        }),
+                    });
+                } catch (error) {
+                    console.error('Failed to fetch access requests:', error);
+                }
+            },
+
+            approveAccessRequest: async (requestId, decision) => {
+                try {
+                    const [{ doc, getDoc, serverTimestamp, setDoc, updateDoc }, { COLLECTIONS, db }] =
+                        await Promise.all([
+                            import('firebase/firestore'),
+                            import('@/lib/db'),
+                        ]);
+
+                    const state = get();
+                    const requestRef = doc(db, COLLECTIONS.ACCESS_REQUESTS, requestId);
+                    const requestSnap = await getDoc(requestRef);
+                    if (!requestSnap.exists()) {
+                        throw new Error('Access request no longer exists.');
+                    }
+
+                    const request = requestSnap.data() as AccessRequest;
+                    const approverId =
+                        (state.user &&
+                        ('userId' in state.user ? state.user.userId : state.user.id)) ||
+                        'SYSTEM';
+
+                    await setDoc(
+                        doc(db, 'users', requestId),
+                        {
+                            email: request.email,
+                            name: request.name,
+                            role: decision.role,
+                            stationId: decision.stationId,
+                            businessUnit: request.businessUnit,
+                            approvedAt: new Date().toISOString(),
+                            approvedBy: approverId,
+                            updatedAt: new Date().toISOString(),
+                        },
+                        { merge: true }
+                    );
+
+                    await updateDoc(requestRef, {
+                        status: 'APPROVED',
+                        stationId: decision.stationId,
+                        role: decision.role,
+                        resolvedBy: approverId,
+                        resolvedAt: new Date().toISOString(),
+                        updatedAt: serverTimestamp(),
+                    });
+
+                    await get().fetchAccessRequests();
+                } catch (error) {
+                    console.error('Failed to approve access request:', error);
+                    throw error;
+                }
+            },
+
+            rejectAccessRequest: async (requestId, reason) => {
+                try {
+                    const [{ doc, serverTimestamp, updateDoc }, { COLLECTIONS, db }] =
+                        await Promise.all([
+                            import('firebase/firestore'),
+                            import('@/lib/db'),
+                        ]);
+
+                    const state = get();
+                    const approverId =
+                        (state.user &&
+                        ('userId' in state.user ? state.user.userId : state.user.id)) ||
+                        'SYSTEM';
+
+                    await updateDoc(doc(db, COLLECTIONS.ACCESS_REQUESTS, requestId), {
+                        status: 'REJECTED',
+                        rejectionReason: reason || 'Rejected by administrator',
+                        resolvedBy: approverId,
+                        resolvedAt: new Date().toISOString(),
+                        updatedAt: serverTimestamp(),
+                    });
+
+                    await get().fetchAccessRequests();
+                } catch (error) {
+                    console.error('Failed to reject access request:', error);
+                    throw error;
+                }
+            },
+
             // Clear lockout
             clearLockout: () => {
                 set({
@@ -440,51 +552,43 @@ export const useAuthStore = create<AuthState>()(
             // Check authentication on app load
             checkAuth: async () => {
                 try {
-                    // First check if we have a Firebase user
                     const { auth } = await import('@/lib/firebase');
                     const firebaseUser = auth.currentUser;
-
-                    if (firebaseUser) {
-                        // User is authenticated with Firebase
-                        set({
-                            isAuthenticated: true,
-                            user: {
-                                userId: firebaseUser.uid,
-                                name: firebaseUser.displayName || firebaseUser.email || 'User',
-                                email: firebaseUser.email || '',
-                                phone: firebaseUser.phoneNumber || '',
-                                role: 'admin',
-                                theme: 'glassy-white',
-                                language: 'en',
-                                businessUnit: localStorage.getItem('businessUnit') || 'FUEL',
-                                stationId: 'STN-001',
-                            } as LocalUser,
-                            isLoading: false,
-                        });
-                        return;
-                    }
-
-                    // Fallback: check for JWT token or local auth
-                    const token = getAuthToken();
                     const state = get();
 
-                    // Check for backend token
+                    if (firebaseUser) {
+                        const stateUser = state.user;
+                        const currentUserId =
+                            stateUser && 'userId' in stateUser ? stateUser.userId : undefined;
+
+                        if (currentUserId === firebaseUser.uid && state.isAuthenticated) {
+                            set({ isLoading: false });
+                        } else {
+                            set({
+                                isAuthenticated: false,
+                                user: null,
+                                isLoading: false,
+                            });
+                        }
+                        return;
+                    }
+
+                    const token = getAuthToken();
+
                     if (token && state.user && 'email' in state.user) {
-                        set({ isAuthenticated: true });
+                        set({ isAuthenticated: true, isLoading: false });
                         return;
                     }
 
-                    // Check for local PIN auth (no token needed)
                     if (state.user && 'userId' in state.user) {
-                        set({ isAuthenticated: true });
+                        set({ isAuthenticated: true, isLoading: false });
                         return;
                     }
 
-                    // No authentication found
-                    set({ isAuthenticated: false });
+                    set({ isAuthenticated: false, isLoading: false });
                 } catch (error) {
                     console.error('Auth check failed:', error);
-                    set({ isAuthenticated: false });
+                    set({ isAuthenticated: false, isLoading: false });
                 }
             },
 

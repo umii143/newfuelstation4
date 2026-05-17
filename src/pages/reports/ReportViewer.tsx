@@ -1,7 +1,8 @@
-import { Button, Card } from '@/components/ui';
+import { Button, Card, Input, Modal } from '@/components/ui';
 import { QuantumRegister, type QuantumColumn } from '@/components/shared/QuantumRegister';
 import { TraceCard, type TraceRecord } from '@/components/shared/TraceCard';
-import { useSettingsStore } from '@/stores/authStore';
+import { useAuthStore, useSettingsStore } from '@/stores/authStore';
+import { useToastStore } from '@/stores/toastStore';
 import clsx from 'clsx';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -15,7 +16,9 @@ import {
     TrendingUp,
     Printer,
     Share2,
-    Clock
+    Clock,
+    Settings2,
+    FileText
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect } from 'react';
 import { REPORT_REGISTRY } from './ReportRegistry';
@@ -24,6 +27,7 @@ import { exportToPDF } from '@/lib/pdfExporter';
 import { useScheduleStore } from '@/stores/scheduleStore';
 import { verifyReportData, type AuditResult } from '@/lib/accuracyVerifier';
 import { getBusinessMeta } from '@/lib/businessScope';
+import { canManageReportSchedules } from '@/lib/roleHelpers';
 
 interface ReportViewerProps {
     reportId: string;
@@ -34,10 +38,28 @@ interface ReportViewerProps {
 const ReportViewer: React.FC<ReportViewerProps> = ({ reportId, onBack, dateRange }) => {
     const report = useMemo(() => REPORT_REGISTRY.find(r => r.id === reportId), [reportId]);
     const { settings } = useSettingsStore();
+    const { user } = useAuthStore();
     const activeBusiness = getBusinessMeta(settings.businessUnit);
+    const canScheduleReports = canManageReportSchedules(user?.role);
     const [activeDrillDown, setActiveDrillDown] = useState<string | null>(null);
     const [traceRecord, setTraceRecord] = useState<TraceRecord | null>(null);
     const { addSchedule } = useScheduleStore();
+    const toast = useToastStore();
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+    const [exportOptions, setExportOptions] = useState({
+        orientation: 'landscape' as 'portrait' | 'landscape',
+        includeSummary: true,
+        includeTimestamp: true,
+        accentTheme: 'blue' as 'blue' | 'emerald' | 'slate' | 'rose',
+        confidentiality: 'INTERNAL' as 'STANDARD' | 'INTERNAL' | 'CONFIDENTIAL' | 'FORENSIC',
+        footerNote: '',
+    });
+    const [scheduleForm, setScheduleForm] = useState({
+        frequency: 'DAILY' as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'END_OF_SHIFT',
+        recipients: 'admin@motorwayoil.com',
+        format: 'PDF' as 'PDF' | 'CSV' | 'EXCEL',
+    });
 
     // Resolution State
     const [resolverResult, setResolverResult] = useState<ResolverResponse | null>(null);
@@ -143,7 +165,10 @@ const ReportViewer: React.FC<ReportViewerProps> = ({ reportId, onBack, dateRange
 
     // Export Helpers
     const handleExportExcel = () => {
-        if (displayData.length === 0) return alert('No data to export');
+        if (displayData.length === 0) {
+            toast.warning('No data', 'There is no report data available for export.');
+            return;
+        }
         
         const headers = report?.columns.map(c => c.label).join(',');
         const rows = displayData.map(row => 
@@ -164,11 +189,15 @@ const ReportViewer: React.FC<ReportViewerProps> = ({ reportId, onBack, dateRange
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        toast.success('CSV ready', 'Report data was exported successfully.');
     };
 
-    const handleExportPDF = () => {
+    const handleExportPDF = (customOptions = exportOptions) => {
         if (!report) return;
-        if (displayData.length === 0) return alert('No data to export');
+        if (displayData.length === 0) {
+            toast.warning('No data', 'There is no report data available for export.');
+            return;
+        }
 
         const columns = report.columns.map(c => c.label);
         const data = displayData.map(row => 
@@ -184,27 +213,75 @@ const ReportViewer: React.FC<ReportViewerProps> = ({ reportId, onBack, dateRange
             filename: `${report.title.replace(/\s+/g, '_')}_${activeBusiness.reportSlug}_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`,
             columns,
             data,
-            isForensic: report.category === 'THEFT_FORENSIC' || report.category === 'AUDIT',
-            showSignature: report.category === 'THEFT_FORENSIC' || report.category === 'AUDIT' || report.category === 'FINANCIAL' || report.category === 'SHIFT'
+            orientation: customOptions.orientation,
+            isForensic:
+                customOptions.confidentiality === 'FORENSIC' ||
+                report.category === 'THEFT_FORENSIC' ||
+                report.category === 'AUDIT',
+            showSignature:
+                report.category === 'THEFT_FORENSIC' ||
+                report.category === 'AUDIT' ||
+                report.category === 'FINANCIAL' ||
+                report.category === 'SHIFT',
+            generatedBy:
+                (user as any)?.name || (user as any)?.fullName || 'System User',
+            businessLabel: activeBusiness.label,
+            reportPeriod: dateRange
+                ? `${format(dateRange.start, 'dd MMM yyyy')} - ${format(dateRange.end, 'dd MMM yyyy')}`
+                : 'All Time',
+            confidentiality: customOptions.confidentiality,
+            accentTheme: customOptions.accentTheme,
+            includeSummary: customOptions.includeSummary,
+            includeTimestamp: customOptions.includeTimestamp,
+            footerNote:
+                customOptions.footerNote ||
+                `${report.category} intelligence report for ${activeBusiness.label}. Generated from secure enterprise workspace.`,
+            summaryItems:
+                kpiSummary?.slice(0, 4).map(kpi => ({
+                    label: kpi.label,
+                    value:
+                        kpi.type === 'currency'
+                            ? `PKR ${Number(kpi.value || 0).toLocaleString()}`
+                            : kpi.value,
+                })) || [],
         });
+        setIsExportModalOpen(false);
+        toast.success('PDF generated', 'Executive PDF report has been prepared.');
     };
 
-    const handleSchedule = () => {
+    const handleSchedule = async () => {
         if (!report) return;
-        addSchedule({
+        const recipients = scheduleForm.recipients
+            .split(',')
+            .map(item => item.trim())
+            .filter(Boolean);
+
+        if (recipients.length === 0) {
+            toast.error('Recipients required', 'Add at least one email recipient.');
+            return;
+        }
+
+        const created = await addSchedule({
             reportId: report.id,
             reportName: report.title,
             module: (report.module === 'ALL' ? 'ENTERPRISE' : report.module) || 'ENTERPRISE',
-            frequency: 'DAILY',
-            recipients: ['admin@motorwayoil.com'],
+            frequency: scheduleForm.frequency,
+            recipients,
             nextRunAt: new Date(new Date().setHours(23, 59, 59, 999)).toISOString(),
-            format: 'PDF',
+            format: scheduleForm.format,
         });
-        alert('Report Scheduled for automated delivery.');
+
+        if (created) {
+            setIsScheduleModalOpen(false);
+            toast.success('Schedule created', 'Automated delivery is now saved in Firebase.');
+        }
     };
 
     const handleWhatsAppShare = () => {
-        if (displayData.length === 0) return alert('No data to share');
+        if (displayData.length === 0) {
+            toast.warning('No data', 'There is no report data available to share.');
+            return;
+        }
         
         const summary = kpiSummary?.map(k => `${k.label}: ${typeof k.value === 'number' ? k.value.toLocaleString() : k.value}`).join('\n');
         const text = `*MOTORWAY OIL BI REPORT*\n\n*Report:* ${report?.title}\n*Business:* ${activeBusiness.label}\n*Date:* ${dateRange ? format(dateRange.start, 'dd MMM') + ' to ' + format(dateRange.end, 'dd MMM') : 'All Time'}\n\n*Key Metrics:*\n${summary}\n\n_Generated via Motorway Enterprise v4.0_`;
@@ -320,13 +397,20 @@ const ReportViewer: React.FC<ReportViewerProps> = ({ reportId, onBack, dateRange
                         <FileSpreadsheet size={16} className="text-slate-400 group-hover:text-blue-500 transition-colors" />Excel
                     </button>
                     <button 
-                        onClick={handleExportPDF}
+                        onClick={() => setIsExportModalOpen(true)}
                         className="flex items-center gap-2 px-5 py-3.5 bg-white/80 dark:bg-[#0B1015]/80 backdrop-blur-3xl border border-slate-200/80 dark:border-slate-800/80 rounded-xl text-slate-700 dark:text-slate-300 hover:border-purple-500/40 dark:hover:border-purple-400/40 hover:text-purple-600 dark:hover:text-purple-400 transition-all shadow-[0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-lg dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.3)] font-black uppercase text-[10px] tracking-widest active:scale-95 group"
                     >
                         <Printer size={16} className="text-slate-400 group-hover:text-purple-500 transition-colors" />PDF
                     </button>
                     <button 
-                        onClick={handleSchedule}
+                        onClick={() => setIsExportModalOpen(true)}
+                        className="flex items-center gap-2 px-5 py-3.5 bg-violet-50/80 dark:bg-violet-900/30 backdrop-blur-3xl border border-violet-200/80 dark:border-violet-800/60 rounded-xl text-violet-700 dark:text-violet-400 hover:border-violet-400/60 transition-all shadow-[0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-lg font-black uppercase text-[10px] tracking-widest active:scale-95 group"
+                    >
+                        <Settings2 size={16} className="group-hover:rotate-12 transition-transform" />Options
+                    </button>
+                    <button 
+                        onClick={() => setIsScheduleModalOpen(true)}
+                        disabled={!canScheduleReports}
                         className="flex items-center gap-2 px-5 py-3.5 bg-amber-50/80 dark:bg-amber-900/30 backdrop-blur-3xl border border-amber-200/80 dark:border-amber-800/60 rounded-xl text-amber-700 dark:text-amber-400 hover:border-amber-400/60 transition-all shadow-[0_4px_20px_rgb(0,0,0,0.02)] hover:shadow-lg font-black uppercase text-[10px] tracking-widest active:scale-95 group"
                     >
                         <Clock size={16} className="text-amber-400 group-hover:scale-110 transition-transform" />Schedule
@@ -421,7 +505,7 @@ const ReportViewer: React.FC<ReportViewerProps> = ({ reportId, onBack, dateRange
                 data={displayData}
                 columns={quantumColumns}
                 onExportExcel={handleExportExcel}
-                onExportPDF={handleExportPDF}
+                onExportPDF={() => setIsExportModalOpen(true)}
                 enableSignatures={report.category === 'FINANCIAL' || report.category === 'SHIFT' || report.category === 'AUDIT'}
                 heightClass="min-h-[400px] max-h-[65vh]"
                 onRowClick={(row: any) => setTraceRecord(row as TraceRecord)}
@@ -489,6 +573,215 @@ const ReportViewer: React.FC<ReportViewerProps> = ({ reportId, onBack, dateRange
                     </Card>
                 </div>
             )}
+            <Modal
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                title="Executive Export Studio"
+                size="lg"
+            >
+                <div className="space-y-6">
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <Card className="p-4 bg-slate-50/80 border-slate-200">
+                            <div className="flex items-center gap-3 mb-3">
+                                <FileText size={18} className="text-blue-600" />
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-900">Document Output</h4>
+                                    <p className="text-xs text-slate-500">Tune the print shape and tone.</p>
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Orientation</label>
+                                    <select
+                                        className="w-full px-4 py-3 rounded-lg min-h-[44px] bg-[var(--bg-surface)] border-2 border-[var(--border)]"
+                                        value={exportOptions.orientation}
+                                        onChange={e =>
+                                            setExportOptions(state => ({
+                                                ...state,
+                                                orientation: e.target.value as 'portrait' | 'landscape',
+                                            }))
+                                        }
+                                    >
+                                        <option value="landscape">Landscape</option>
+                                        <option value="portrait">Portrait</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Accent Theme</label>
+                                    <select
+                                        className="w-full px-4 py-3 rounded-lg min-h-[44px] bg-[var(--bg-surface)] border-2 border-[var(--border)]"
+                                        value={exportOptions.accentTheme}
+                                        onChange={e =>
+                                            setExportOptions(state => ({
+                                                ...state,
+                                                accentTheme: e.target.value as 'blue' | 'emerald' | 'slate' | 'rose',
+                                            }))
+                                        }
+                                    >
+                                        <option value="blue">Blue Executive</option>
+                                        <option value="emerald">Emerald Finance</option>
+                                        <option value="slate">Slate Boardroom</option>
+                                        <option value="rose">Rose Forensic</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="p-4 bg-slate-50/80 border-slate-200">
+                            <div className="flex items-center gap-3 mb-3">
+                                <ShieldCheck size={18} className="text-amber-600" />
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-900">Governance Controls</h4>
+                                    <p className="text-xs text-slate-500">Set disclosure and evidence depth.</p>
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Confidentiality</label>
+                                    <select
+                                        className="w-full px-4 py-3 rounded-lg min-h-[44px] bg-[var(--bg-surface)] border-2 border-[var(--border)]"
+                                        value={exportOptions.confidentiality}
+                                        onChange={e =>
+                                            setExportOptions(state => ({
+                                                ...state,
+                                                confidentiality: e.target.value as 'STANDARD' | 'INTERNAL' | 'CONFIDENTIAL' | 'FORENSIC',
+                                            }))
+                                        }
+                                    >
+                                        <option value="STANDARD">Standard</option>
+                                        <option value="INTERNAL">Internal</option>
+                                        <option value="CONFIDENTIAL">Confidential</option>
+                                        <option value="FORENSIC">Forensic</option>
+                                    </select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <label className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 bg-white">
+                                        <input
+                                            type="checkbox"
+                                            checked={exportOptions.includeSummary}
+                                            onChange={e =>
+                                                setExportOptions(state => ({
+                                                    ...state,
+                                                    includeSummary: e.target.checked,
+                                                }))
+                                            }
+                                        />
+                                        Summary block
+                                    </label>
+                                    <label className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 bg-white">
+                                        <input
+                                            type="checkbox"
+                                            checked={exportOptions.includeTimestamp}
+                                            onChange={e =>
+                                                setExportOptions(state => ({
+                                                    ...state,
+                                                    includeTimestamp: e.target.checked,
+                                                }))
+                                            }
+                                        />
+                                        Timestamp
+                                    </label>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+                    <Input
+                        label="Footer note"
+                        value={exportOptions.footerNote}
+                        onChange={e =>
+                            setExportOptions(state => ({ ...state, footerNote: e.target.value }))
+                        }
+                        placeholder="Optional executive note or distribution instruction"
+                    />
+                    <div className="rounded-2xl border border-dashed border-slate-200 p-4 bg-slate-50/60">
+                        <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-500 mb-2">Export Preview</p>
+                        <div className="grid md:grid-cols-4 gap-3">
+                            {(kpiSummary || []).slice(0, 4).map(kpi => (
+                                <div key={kpi.label} className="rounded-xl bg-white border border-slate-200 px-4 py-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{kpi.label}</p>
+                                    <p className="text-sm font-bold text-slate-900 mt-1">
+                                        {kpi.type === 'currency'
+                                            ? `PKR ${Number(kpi.value || 0).toLocaleString()}`
+                                            : Number(kpi.value || 0).toLocaleString()}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-3">
+                        <Button variant="secondary" onClick={() => setIsExportModalOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button variant="primary" onClick={() => handleExportPDF()}>
+                            Generate PDF
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+            <Modal
+                isOpen={isScheduleModalOpen}
+                onClose={() => setIsScheduleModalOpen(false)}
+                title="Automated Delivery Setup"
+                size="md"
+            >
+                <div className="space-y-5">
+                    <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Frequency</label>
+                            <select
+                                className="w-full px-4 py-3 rounded-lg min-h-[44px] bg-[var(--bg-surface)] border-2 border-[var(--border)]"
+                                value={scheduleForm.frequency}
+                                onChange={e =>
+                                    setScheduleForm(state => ({
+                                        ...state,
+                                        frequency: e.target.value as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'END_OF_SHIFT',
+                                    }))
+                                }
+                            >
+                                <option value="DAILY">Daily</option>
+                                <option value="WEEKLY">Weekly</option>
+                                <option value="MONTHLY">Monthly</option>
+                                <option value="END_OF_SHIFT">End Of Shift</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Format</label>
+                            <select
+                                className="w-full px-4 py-3 rounded-lg min-h-[44px] bg-[var(--bg-surface)] border-2 border-[var(--border)]"
+                                value={scheduleForm.format}
+                                onChange={e =>
+                                    setScheduleForm(state => ({
+                                        ...state,
+                                        format: e.target.value as 'PDF' | 'CSV' | 'EXCEL',
+                                    }))
+                                }
+                            >
+                                <option value="PDF">PDF</option>
+                                <option value="CSV">CSV</option>
+                                <option value="EXCEL">Excel</option>
+                            </select>
+                        </div>
+                    </div>
+                    <Input
+                        label="Recipients"
+                        value={scheduleForm.recipients}
+                        onChange={e =>
+                            setScheduleForm(state => ({ ...state, recipients: e.target.value }))
+                        }
+                        placeholder="manager@company.com, owner@company.com"
+                    />
+                    <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                        Reports are queued locally in the scheduler store. This is ready for backend email automation wiring.
+                    </div>
+                    <div className="flex justify-end gap-3">
+                        <Button variant="secondary" onClick={() => setIsScheduleModalOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button variant="primary" onClick={handleSchedule}>
+                            Save Schedule
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
             <div className="text-center pb-8 print:hidden">
                 <p className="text-[10px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[.8em]">
                     End of Ledger Archive

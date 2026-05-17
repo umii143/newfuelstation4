@@ -1,5 +1,5 @@
 /**
- * firestoreService.ts — Generic Firestore CRUD Operations
+ * firestoreService.ts - Generic Firestore CRUD Operations
  * All operations are scoped to the station's collection.
  * Zustand updates instantly; Firestore writes happen async in background.
  */
@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { stampBusinessScope, type BusinessUnit } from '@/lib/businessScope';
 import { COLLECTIONS, db, stationCol, stationDoc } from '@/lib/db';
+import { useToastStore } from '@/stores/toastStore';
 
 const COLLECTION_DEFAULT_BUSINESS: Partial<Record<string, BusinessUnit>> = {
     [COLLECTIONS.FUEL_SHIFTS]: 'FUEL',
@@ -24,6 +25,42 @@ const COLLECTION_DEFAULT_BUSINESS: Partial<Record<string, BusinessUnit>> = {
     [COLLECTIONS.CNG_SHIFTS]: 'CNG',
     [COLLECTIONS.CNG_CASCADES]: 'CNG',
     [COLLECTIONS.CNG_NOZZLES]: 'CNG',
+};
+
+const getPermissionMessage = (collectionName: string): string => {
+    switch (collectionName) {
+        case COLLECTIONS.STAFF:
+            return 'Only authorized managers can change staff records.';
+        case COLLECTIONS.CASH_BANK:
+            return 'This cash and bank setup action requires a finance role.';
+        case COLLECTIONS.DISCOUNTS:
+            return 'This discount change requires a manager, owner, or cashier role.';
+        case COLLECTIONS.AUDIT_LOGS:
+            return 'Audit records are append-only and cannot be changed.';
+        case COLLECTIONS.PURCHASE_ORDERS:
+            return 'Only authorized managers can change purchase orders.';
+        case COLLECTIONS.PROFIT_ENTRIES:
+            return 'Profit intelligence entries are restricted to privileged roles.';
+        default:
+            return 'You do not have permission to change this station data.';
+    }
+};
+
+const notifyPermissionDenied = (collectionName: string) => {
+    useToastStore
+        .getState()
+        .error('Access denied', getPermissionMessage(collectionName));
+};
+
+const handleFirestoreError = (collectionName: string, error: unknown) => {
+    if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'permission-denied'
+    ) {
+        notifyPermissionDenied(collectionName);
+    }
 };
 
 const applyBusinessScope = (
@@ -41,26 +78,30 @@ const applyBusinessScope = (
     return stampBusinessScope(data, data.businessUnit || defaultBusiness);
 };
 
-// ── Generic save (upsert by ID) ─────────────────────────────────────────────
 export const fsSet = async <T extends DocumentData>(
     stationId: string,
     collectionName: string,
     id: string,
     data: T
-): Promise<void> => {
+): Promise<boolean> => {
     try {
         const payload = applyBusinessScope(collectionName, data as Record<string, any>);
         await setDoc(stationDoc(stationId, collectionName, id), {
             ...payload,
             _updatedAt: new Date().toISOString(),
         });
-        console.log(`[Firestore ✅] Saved ${collectionName}/${id} to station ${stationId}`);
-    } catch (err: any) {
-        console.error(`[Firestore ❌] FAILED to save ${collectionName}/${id} to station ${stationId}:`, err?.code, err?.message || err);
+        console.log(`[Firestore] Saved ${collectionName}/${id} to station ${stationId}`);
+        return true;
+    } catch (error) {
+        handleFirestoreError(collectionName, error);
+        console.error(
+            `[Firestore] Failed to save ${collectionName}/${id} to station ${stationId}:`,
+            error
+        );
+        return false;
     }
 };
 
-// ── Generic add (auto-ID) ───────────────────────────────────────────────────
 export const fsAdd = async <T extends DocumentData>(
     stationId: string,
     collectionName: string,
@@ -73,13 +114,13 @@ export const fsAdd = async <T extends DocumentData>(
             _createdAt: new Date().toISOString(),
         });
         return ref.id;
-    } catch (err) {
-        console.error(`[Firestore] Failed to add to ${collectionName}:`, err);
+    } catch (error) {
+        handleFirestoreError(collectionName, error);
+        console.error(`[Firestore] Failed to add to ${collectionName}:`, error);
         return '';
     }
 };
 
-// ── Generic load all ────────────────────────────────────────────────────────
 export const fsLoadAll = async <T>(
     stationId: string,
     collectionName: string
@@ -87,57 +128,76 @@ export const fsLoadAll = async <T>(
     try {
         const snapshot = await getDocs(stationCol(stationId, collectionName));
         return snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as T);
-    } catch (err) {
-        console.error(`[Firestore] Failed to load ${collectionName}:`, err);
+    } catch (error) {
+        console.error(`[Firestore] Failed to load ${collectionName}:`, error);
         return [];
     }
 };
 
-// ── Generic update (partial) ─────────────────────────────────────────────────
 export const fsUpdate = async (
     stationId: string,
     collectionName: string,
     id: string,
     data: Partial<DocumentData>
-): Promise<void> => {
+): Promise<boolean> => {
     try {
         const payload = applyBusinessScope(collectionName, data as Record<string, any>);
         await updateDoc(stationDoc(stationId, collectionName, id), {
             ...payload,
             _updatedAt: new Date().toISOString(),
         });
-    } catch (err) {
-        console.error(`[Firestore] Failed to update ${collectionName}/${id}:`, err);
+        return true;
+    } catch (error) {
+        handleFirestoreError(collectionName, error);
+        console.error(`[Firestore] Failed to update ${collectionName}/${id}:`, error);
+        return false;
     }
 };
 
-// ── Generic delete ──────────────────────────────────────────────────────────
 export const fsDelete = async (
     stationId: string,
     collectionName: string,
     id: string
-): Promise<void> => {
+): Promise<boolean> => {
     try {
         await deleteDoc(doc(db, 'stations', stationId, collectionName, id));
-    } catch (err) {
-        console.error(`[Firestore] Failed to delete ${collectionName}/${id}:`, err);
+        return true;
+    } catch (error) {
+        handleFirestoreError(collectionName, error);
+        console.error(`[Firestore] Failed to delete ${collectionName}/${id}:`, error);
+        return false;
     }
 };
 
-// ── Named collection loaders (for useFirestoreInit) ──────────────────────────
 export const loadAllCollections = async (stationId: string) => {
-    // 5-second timeout to prevent indefinite hanging when offline or using dummy credentials
-    const timeoutPromise = new Promise<never>((_, reject) => 
+    const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Firestore sync timed out')), 5000)
     );
 
     const [
-        shifts, cngShifts, tanks, cngCascades, cngNozzles,
-        customers, suppliers, staff, attendance, expenses,
-        products, sales, customerLedger, supplierLedger,
-        cashBank, cashLedger, staffLedger, auditLogs, profitEntries,
-        discounts
-    ] = await Promise.race([
+        shifts,
+        cngShifts,
+        tanks,
+        cngCascades,
+        cngNozzles,
+        customers,
+        suppliers,
+        staff,
+        attendance,
+        expenses,
+        products,
+        sales,
+        customerLedger,
+        supplierLedger,
+        cashBank,
+        cashLedger,
+        staffLedger,
+        auditLogs,
+        profitEntries,
+        discounts,
+        reportSchedules,
+        reportRunLogs,
+    ] = (await Promise.race([
         Promise.all([
             fsLoadAll(stationId, COLLECTIONS.FUEL_SHIFTS),
             fsLoadAll(stationId, COLLECTIONS.CNG_SHIFTS),
@@ -159,15 +219,34 @@ export const loadAllCollections = async (stationId: string) => {
             fsLoadAll(stationId, COLLECTIONS.AUDIT_LOGS),
             fsLoadAll(stationId, COLLECTIONS.PROFIT_ENTRIES),
             fsLoadAll(stationId, COLLECTIONS.DISCOUNTS),
+            fsLoadAll(stationId, COLLECTIONS.REPORT_SCHEDULES),
+            fsLoadAll(stationId, COLLECTIONS.REPORT_RUN_LOGS),
         ]),
-        timeoutPromise
-    ]) as any;
+        timeoutPromise,
+    ])) as any;
 
     return {
-        shifts, cngShifts, tanks, cngCascades, cngNozzles,
-        customers, suppliers, staff, attendance, expenses,
-        products, sales, customerLedger, supplierLedger,
-        cashBank, cashLedger, staffLedger, auditLogs, profitEntries,
+        shifts,
+        cngShifts,
+        tanks,
+        cngCascades,
+        cngNozzles,
+        customers,
+        suppliers,
+        staff,
+        attendance,
+        expenses,
+        products,
+        sales,
+        customerLedger,
+        supplierLedger,
+        cashBank,
+        cashLedger,
+        staffLedger,
+        auditLogs,
+        profitEntries,
         discounts,
+        reportSchedules,
+        reportRunLogs,
     };
 };

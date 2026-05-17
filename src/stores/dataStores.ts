@@ -15,6 +15,8 @@ import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
 import { stampBusinessScope } from '@/lib/businessScope';
 import { useAntiFraudStore } from './antiFraudStore';
+import { canManageStaff } from '@/lib/roleHelpers';
+import { useToastStore } from '@/stores/toastStore';
 
 // Customer Store
 interface CustomerState {
@@ -418,6 +420,14 @@ export const useStaffStore = create<StaffState>()(
             addStaff: async staffData => {
                 set({ isLoading: true, error: null });
                 try {
+                    const currentRole = useSettingsStore.getState().user?.role;
+                    if (!canManageStaff(currentRole)) {
+                        const message = 'Only managers and owners can create staff records.';
+                        useToastStore.getState().error('Access denied', message);
+                        set({ isLoading: false, error: message });
+                        return;
+                    }
+
                     const { settings } = useSettingsStore.getState();
                     const sid = getStationId();
                     const userId = `USR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -439,6 +449,13 @@ export const useStaffStore = create<StaffState>()(
             },
 
             updateStaff: async (userId, updates) => {
+                const currentRole = useSettingsStore.getState().user?.role;
+                if (!canManageStaff(currentRole)) {
+                    const message = 'Only managers and owners can update staff records.';
+                    useToastStore.getState().error('Access denied', message);
+                    set({ isLoading: false, error: message });
+                    return;
+                }
                 set({ isLoading: true });
                 set(state => {
                     const updatedUsers = state.users.map(u =>
@@ -459,6 +476,13 @@ export const useStaffStore = create<StaffState>()(
             },
 
             deleteStaff: async userId => {
+                const currentRole = useSettingsStore.getState().user?.role;
+                if (!canManageStaff(currentRole)) {
+                    const message = 'Only managers and owners can remove staff records.';
+                    useToastStore.getState().error('Access denied', message);
+                    set({ isLoading: false, error: message });
+                    return;
+                }
                 set({ isLoading: true });
                 set(state => ({
                     users: state.users.filter(u => u.userId !== userId),

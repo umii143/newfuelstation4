@@ -2,29 +2,153 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Function to check if the user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // 1. Users Collection
-    // Users can only read and write their own profile document
-    match /users/{userId} {
-      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    function userProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // 2. Stations Multi-Tenant Sandbox
-    // Any authenticated user can access station data.
-    // The stationId scoping is enforced by the application layer.
-    // This removes the dependency on the /users/{uid} profile document
-    // which was causing silent write failures on first login.
-    match /stations/{stationId}/{document=**} {
-      allow read, write: if isAuthenticated();
+    function hasUserProfile() {
+      return isAuthenticated() && userProfile().data != null;
     }
-    
-    // 3. Fallback Deny All
-    // Explicitly block all other database access vectors
+
+    function stationAccessMatches(stationId) {
+      return hasUserProfile() && userProfile().data.stationId == stationId;
+    }
+
+    function sameStationData() {
+      return hasUserProfile() && request.resource.data.stationId == userProfile().data.stationId;
+    }
+
+    function existingSameStationData() {
+      return hasUserProfile() && resource.data.stationId == userProfile().data.stationId;
+    }
+
+    function isPrivilegedRole() {
+      return hasUserProfile() && userProfile().data.role in ['ADMIN', 'admin', 'MANAGER', 'manager'];
+    }
+
+    function isReportAutomationRole() {
+      return hasUserProfile() && userProfile().data.role in [
+        'OWNER', 'owner',
+        'ADMIN', 'admin',
+        'MANAGER', 'manager',
+        'AUDITOR', 'auditor',
+        'OFFICE_STAFF', 'office_staff'
+      ];
+    }
+
+    function isFinanceRole() {
+      return hasUserProfile() && userProfile().data.role in [
+        'ADMIN', 'admin',
+        'MANAGER', 'manager',
+        'OWNER', 'owner',
+        'CASHIER', 'cashier'
+      ];
+    }
+
+    function isSensitiveCollection(collectionName) {
+      return collectionName in [
+        'auditLogs',
+        'staff',
+        'cashBank',
+        'discounts',
+        'purchaseOrders',
+        'profitEntries',
+        'reportSchedules',
+        'reportRunLogs'
+      ];
+    }
+
+    function canReadStationCollection(stationId) {
+      return stationAccessMatches(stationId);
+    }
+
+    function canCreateStationCollection(stationId, collectionName) {
+      return stationAccessMatches(stationId) && (
+        !isSensitiveCollection(collectionName)
+        || collectionName == 'auditLogs'
+        || collectionName == 'discounts'
+        || (collectionName == 'staff' && isPrivilegedRole())
+        || (collectionName == 'cashBank' && isFinanceRole())
+        || (collectionName == 'purchaseOrders' && isPrivilegedRole())
+        || (collectionName == 'profitEntries' && isPrivilegedRole())
+        || (collectionName == 'reportSchedules' && isReportAutomationRole())
+        || (collectionName == 'reportRunLogs' && isReportAutomationRole())
+      );
+    }
+
+    function canUpdateStationCollection(stationId, collectionName) {
+      return stationAccessMatches(stationId) && (
+        !isSensitiveCollection(collectionName)
+        || (collectionName == 'staff' && isPrivilegedRole())
+        || (collectionName == 'cashBank' && isFinanceRole())
+        || (collectionName == 'discounts' && isFinanceRole())
+        || (collectionName == 'purchaseOrders' && isPrivilegedRole())
+        || (collectionName == 'profitEntries' && isPrivilegedRole())
+        || (collectionName == 'reportSchedules' && isReportAutomationRole())
+      );
+    }
+
+    function canDeleteStationCollection(stationId, collectionName) {
+      return stationAccessMatches(stationId) && (
+        (collectionName == 'staff' && isPrivilegedRole())
+        || (collectionName == 'cashBank' && isFinanceRole())
+        || (collectionName == 'discounts' && isPrivilegedRole())
+        || (collectionName == 'purchaseOrders' && isPrivilegedRole())
+        || (collectionName == 'profitEntries' && isPrivilegedRole())
+        || (collectionName == 'reportSchedules' && isReportAutomationRole())
+      );
+    }
+
+    function isOwnAccessRequest(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read: if (isAuthenticated() && request.auth.uid == userId)
+        || (isPrivilegedRole() && existingSameStationData());
+      allow update: if isAuthenticated()
+        && request.auth.uid == userId
+        && resource.data.stationId == request.resource.data.stationId
+        && resource.data.role == request.resource.data.role;
+      allow create, update: if isPrivilegedRole()
+        && request.resource.data.stationId is string
+        && request.resource.data.role is string
+        && sameStationData();
+      allow delete: if false;
+    }
+
+    match /stations/{stationId}/{collectionName}/{documentId} {
+      allow read: if canReadStationCollection(stationId);
+      allow create: if collectionName == 'reportRunLogs'
+        ? canCreateStationCollection(stationId, collectionName)
+          && request.resource.data.status in ['QUEUED', 'SUCCESS', 'FAILED']
+        : canCreateStationCollection(stationId, collectionName);
+      allow update: if collectionName != 'auditLogs'
+        && collectionName != 'reportRunLogs'
+        && canUpdateStationCollection(stationId, collectionName);
+      allow delete: if collectionName != 'auditLogs'
+        && collectionName != 'reportRunLogs'
+        && canDeleteStationCollection(stationId, collectionName);
+    }
+
+    match /accessRequests/{userId} {
+      allow read: if isOwnAccessRequest(userId) || isPrivilegedRole();
+      allow create: if isOwnAccessRequest(userId)
+        && request.resource.data.userId == userId
+        && request.resource.data.status == 'PENDING'
+        && request.resource.data.email is string
+        && request.resource.data.requestedAt is string;
+      allow update: if (isOwnAccessRequest(userId)
+        && resource.data.userId == request.resource.data.userId
+        && resource.data.status == request.resource.data.status)
+        || isPrivilegedRole();
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

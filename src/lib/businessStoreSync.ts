@@ -45,6 +45,8 @@ export interface FirestoreBusinessData {
     auditLogs?: any[];
     profitEntries?: any[];
     discounts?: any[];
+    reportSchedules?: any[];
+    reportRunLogs?: any[];
 }
 
 interface LocalBusinessCache {

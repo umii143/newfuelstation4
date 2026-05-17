@@ -14,6 +14,7 @@ import { useFuelStore } from '@/stores/fuelStore';
 import { useCNGStore } from '@/stores/cngStore';
 import { useProfitStore } from '@/stores/profitStore';
 import { useDiscountStore } from '@/stores/discountStore';
+import { useScheduleStore } from '@/stores/scheduleStore';
 import { COLLECTIONS, db } from '@/lib/db';
 import { hydrateBusinessScopedStores, type FirestoreBusinessData } from '@/lib/businessStoreSync';
 import { filterByBusinessScope, normalizeBusinessUnit, type BusinessUnit } from '@/lib/businessScope';
@@ -66,6 +67,8 @@ export const useFirestoreInit = () => {
 
                 const data = (await loadAllCollections(stationId)) as FirestoreBusinessData;
                 hydrateBusinessScopedStores(data, activeBusiness);
+                useScheduleStore.getState().setSchedules((data.reportSchedules as any) || []);
+                useScheduleStore.getState().setRunLogs((data.reportRunLogs as any) || []);
 
                 unsubscribes.push(
                     setupListener(
@@ -184,6 +187,16 @@ export const useFirestoreInit = () => {
                 unsubscribes.push(
                     setupListener(stationId, COLLECTIONS.DISCOUNTS, docs =>
                         useDiscountStore.setState({ discountEntries: docs as any })
+                    )
+                );
+                unsubscribes.push(
+                    setupListener(stationId, COLLECTIONS.REPORT_SCHEDULES, docs =>
+                        useScheduleStore.getState().setSchedules(docs as any)
+                    )
+                );
+                unsubscribes.push(
+                    setupListener(stationId, COLLECTIONS.REPORT_RUN_LOGS, docs =>
+                        useScheduleStore.getState().setRunLogs(docs as any)
                     )
                 );
 

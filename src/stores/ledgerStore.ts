@@ -23,6 +23,8 @@ import { fsSet } from '@/services/firestoreService';
 import { COLLECTIONS } from '@/lib/db';
 import { auditLogger } from '@/lib/auditLogger';
 import { stampBusinessScope } from '@/lib/businessScope';
+import { canManageCashBank, normalizeUserRole } from '@/lib/roleHelpers';
+import { useToastStore } from '@/stores/toastStore';
 
 // ============================================
 // CUSTOMER LEDGER STORE
@@ -421,6 +423,17 @@ export const useCashBankStore = create<CashBankState>()(
             isLoading: false,
 
             addAccount: accountData => {
+                const currentRole = useSettingsStore.getState().user?.role;
+                if (!canManageCashBank(currentRole)) {
+                    useToastStore
+                        .getState()
+                        .error(
+                            'Access denied',
+                            'Only finance-authorized roles can create cash or bank accounts.'
+                        );
+                    return;
+                }
+
                 const { settings } = useSettingsStore.getState();
                 const newAccount = stampBusinessScope<CashAccount>({
                     ...accountData,
@@ -851,7 +864,14 @@ export const useAuditStore = create<AuditState>()(
 
             clearLogs: () => {
                 const user = useSettingsStore.getState().user;
-                if (user?.role !== 'admin' && user?.role !== 'OWNER') {
+                const normalizedRole = normalizeUserRole(user?.role);
+                if (normalizedRole !== 'ADMIN' && normalizedRole !== 'OWNER') {
+                    useToastStore
+                        .getState()
+                        .error(
+                            'Access denied',
+                            'Only owners or admins can clear local audit cache.'
+                        );
                     console.warn('[SECURITY] Unauthorized attempt to clear audit logs.');
                     return;
                 }

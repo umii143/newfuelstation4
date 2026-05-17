@@ -1,10 +1,10 @@
 /**
- * db.ts — Firestore Database Layer
+ * db.ts - Firestore Database Layer
  * Scopes all collections to /stations/{stationId}/
  * This replaces localStorage as the persistent data store.
  */
 
-import { initializeApp, getApps } from 'firebase/app';
+import { getApps, initializeApp } from 'firebase/app';
 import {
     collection,
     doc,
@@ -15,32 +15,45 @@ import {
     type DocumentData,
 } from 'firebase/firestore';
 
-// ── Firebase config (reads from .env, falls back to hardcoded for dev) ──────
-const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'demo-api-key',
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'motorway-oil.firebaseapp.com',
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'motorway-oil',
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'motorway-oil.appspot.com',
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '123456789',
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:123456789:web:abc123',
+type FirebaseEnvKey =
+    | 'VITE_FIREBASE_API_KEY'
+    | 'VITE_FIREBASE_AUTH_DOMAIN'
+    | 'VITE_FIREBASE_PROJECT_ID'
+    | 'VITE_FIREBASE_STORAGE_BUCKET'
+    | 'VITE_FIREBASE_MESSAGING_SENDER_ID'
+    | 'VITE_FIREBASE_APP_ID';
+
+const getRequiredEnv = (key: FirebaseEnvKey): string => {
+    const value = import.meta.env[key];
+    if (!value || !value.trim()) {
+        throw new Error(`Missing required Firebase environment variable: ${key}`);
+    }
+    return value;
 };
 
-// Avoid re-initializing if already done (HMR safe)
+const firebaseConfig = {
+    apiKey: getRequiredEnv('VITE_FIREBASE_API_KEY'),
+    authDomain: getRequiredEnv('VITE_FIREBASE_AUTH_DOMAIN'),
+    projectId: getRequiredEnv('VITE_FIREBASE_PROJECT_ID'),
+    storageBucket: getRequiredEnv('VITE_FIREBASE_STORAGE_BUCKET'),
+    messagingSenderId: getRequiredEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+    appId: getRequiredEnv('VITE_FIREBASE_APP_ID'),
+};
+
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+
 export const db = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
 
-// ── Station-scoped collection helper ────────────────────────────────────────
-// All data is scoped under /stations/{stationId}/ for multi-tenancy
-
-export const stationCol = (stationId: string, path: string): CollectionReference<DocumentData> =>
-    collection(db, 'stations', stationId, path);
+export const stationCol = (
+    stationId: string,
+    path: string
+): CollectionReference<DocumentData> => collection(db, 'stations', stationId, path);
 
 export const stationDoc = (stationId: string, path: string, docId: string) =>
     doc(db, 'stations', stationId, path, docId);
 
-// ── Collection name constants ───────────────────────────────────────────────
 export const COLLECTIONS = {
     FUEL_SHIFTS: 'shifts',
     CNG_SHIFTS: 'cngShifts',
@@ -60,6 +73,7 @@ export const COLLECTIONS = {
     CASH_LEDGER: 'cashLedger',
     STAFF_LEDGER: 'staffLedger',
     AUDIT_LOGS: 'auditLogs',
+    ACCESS_REQUESTS: 'accessRequests',
     PROFIT_ENTRIES: 'profitEntries',
     DISCOUNTS: 'discounts',
     RATE_CONFIGS: 'rateConfigs',
@@ -67,4 +81,6 @@ export const COLLECTIONS = {
     TANK_CONFIGS: 'tankConfigs',
     STATION_PROFILE: 'stationProfile',
     PURCHASE_ORDERS: 'purchaseOrders',
+    REPORT_SCHEDULES: 'reportSchedules',
+    REPORT_RUN_LOGS: 'reportRunLogs',
 } as const;

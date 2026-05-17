@@ -418,15 +418,15 @@ const TankManagementTab: React.FC = () => {
         const tankData = {
             name: formData.get('name') as string,
             fuelType: formData.get('fuelType') as FuelType,
-            capacity: parseFloat(formData.get('capacity') as string),
-            currentLevel: parseFloat(formData.get('currentLevel') as string),
-            costPrice: parseFloat(formData.get('costPrice') as string),
-            salePrice: parseFloat(formData.get('salePrice') as string),
-            reorderPoint: parseFloat(formData.get('reorderPoint') as string),
-            minimumThresholdLevel: parseFloat(formData.get('minimumThresholdLevel') as string),
-            installationDate: formData.get('installationDate') as string,
-            lastCalibrationDate: formData.get('lastCalibrationDate') as string,
-            calibrationDueDate: formData.get('calibrationDueDate') as string,
+            capacity: parseFloat(formData.get('capacity') as string) || 0,
+            currentLevel: parseFloat(formData.get('currentLevel') as string) || 0,
+            costPrice: parseFloat(formData.get('costPrice') as string) || 0,
+            salePrice: parseFloat(formData.get('salePrice') as string) || 0,
+            reorderPoint: parseFloat(formData.get('reorderPoint') as string) || 0,
+            minimumThresholdLevel: parseFloat(formData.get('minimumThresholdLevel') as string) || 0,
+            installationDate: (formData.get('installationDate') as string) || new Date().toISOString().split('T')[0],
+            lastCalibrationDate: (formData.get('lastCalibrationDate') as string) || new Date().toISOString().split('T')[0],
+            calibrationDueDate: (formData.get('calibrationDueDate') as string) || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             isActive: true,
         };
 
@@ -718,16 +718,16 @@ const NozzleConfigurationTab: React.FC = () => {
         const nozzleData = {
             name: formData.get('name') as string,
             tankId: formData.get('tankId') as string,
-            number: parseInt(formData.get('number') as string),
-            currentReading: parseFloat(formData.get('currentReading') as string),
-            testVolume: parseFloat(formData.get('testVolume') as string),
-            status: formData.get('status') as 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE',
-            installationDate: formData.get('installationDate') as string,
-            lastCalibrationDate: formData.get('lastCalibrationDate') as string,
-            calibrationStatus: formData.get('calibrationStatus') as
+            number: parseInt(formData.get('number') as string) || 1,
+            currentReading: parseFloat(formData.get('currentReading') as string) || 0,
+            testVolume: parseFloat(formData.get('testVolume') as string) || 0,
+            status: (formData.get('status') as 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE') || 'ACTIVE',
+            installationDate: (formData.get('installationDate') as string) || new Date().toISOString().split('T')[0],
+            lastCalibrationDate: (formData.get('lastCalibrationDate') as string) || new Date().toISOString().split('T')[0],
+            calibrationStatus: (formData.get('calibrationStatus') as
                 | 'CALIBRATED'
                 | 'DUE'
-                | 'OVERDUE',
+                | 'OVERDUE') || 'CALIBRATED',
             isActive: true,
         };
 

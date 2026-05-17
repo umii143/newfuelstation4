@@ -574,7 +574,7 @@ export const useConfigStore = create<ConfigState>()(
                 const tank = get().tankConfigs.find(
                     t => t.tankId === tankId && t.businessUnit === settings.businessUnit
                 );
-                if (!tank) return 0;
+                if (!tank || !tank.capacity) return 0;
                 return (tank.currentLevel / tank.capacity) * 100;
             },
 
